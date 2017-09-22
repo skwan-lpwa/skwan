@@ -1,25 +1,25 @@
 /*
-	********************************************************************************
-	Object:  V850 port of a Rijndael ANSI C code by Rijmen/Bosselaers/Barreto
-	Date:    October 2006
-	Done by: F. Poulard / NEC Electronics
-	********************************************************************************
+    ********************************************************************************
+    Object:  V850 port of a Rijndael ANSI C code by Rijmen/Bosselaers/Barreto
+    Date:    October 2006
+    Done by: F. Poulard / NEC Electronics
+    ********************************************************************************
 
-	Authors of the original source code are mentionned here-below.
-	The following adaptations have been made to realize the V850 port:
-	1/ Removed function rijndaelEncryptRound() and rijndaelDecryptRound()
-	   after the #ifdef INTERMEDIATE_VALUE_KAT
-	2/ Removed the include file <assert.h>
-	
-	Note: define the symbol FULL_UNROLL to unfold the round loops in the
-	encryption and decryption functions.
+    Authors of the original source code are mentionned here-below.
+    The following adaptations have been made to realize the V850 port:
+    1/ Removed function rijndaelEncryptRound() and rijndaelDecryptRound()
+       after the #ifdef INTERMEDIATE_VALUE_KAT
+    2/ Removed the include file <assert.h>
+    
+    Note: define the symbol FULL_UNROLL to unfold the round loops in the
+    encryption and decryption functions.
 
-	********************************************************************************
-	**********                          CAUTION                           **********
-	********************************************************************************
-	THIS SOFTWARE IS PROVIDED ''AS IS'' AND FOR REFERENCE ONLY.
-	NEC DOES NOT GUARANTEE ITS CORRECT OPERATION AND DISCLAIM ANY FORM OF WARRANTY.
-	********************************************************************************
+    ********************************************************************************
+    **********                          CAUTION                           **********
+    ********************************************************************************
+    THIS SOFTWARE IS PROVIDED ''AS IS'' AND FOR REFERENCE ONLY.
+    NEC DOES NOT GUARANTEE ITS CORRECT OPERATION AND DISCLAIM ANY FORM OF WARRANTY.
+    ********************************************************************************
 */
 
 /**

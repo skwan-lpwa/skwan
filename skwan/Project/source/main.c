@@ -1,7 +1,9 @@
 /**
-    Author:       Skyley Networks, Inc.
+    main.c
+
+    Author:        Skyley Networks, Inc.
     Version:
-    Description:  Scalable-Slotted MAC (aka SSMAC) for SkWAN
+    Description:   SK command for SkWAN
     
     Copyrights(C) 2016-2017 Skyley Networks, Inc. All Rights Reserved.
 

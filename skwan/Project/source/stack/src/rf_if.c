@@ -1,7 +1,7 @@
 /**
-    Author:			Skyley Networks, Inc.
+    Author:         Skyley Networks, Inc.
     Version:
-    Description:	ML7404 register access and RF initialize
+    Description:    ML7404 register access and RF initialize
     
     Copyrights(C) 2016-2017 Skyley Networks, Inc. All Rights Reserved.
 
@@ -9,7 +9,7 @@
     modification, are permitted provided that the following conditions
     are met:
     1. Redistributions of source code must retain the above copyright
-	  notice, this list of conditions and the following disclaimer.
+      notice, this list of conditions and the following disclaimer.
     2. Redistributions in binary form must reproduce the above copyright
       notice, this list of conditions and the following disclaimer in the
       documentation and/or other materials provided with the distribution.

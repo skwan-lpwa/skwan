@@ -56,7 +56,7 @@ extern "C" {
 #define SS_SYNC_LEN						(2UL)
 
 #if (BASE_PHY_TYPE == SS_PHY_15_4G) //15.4g
-	#define SS_MHR_LEN					(2UL) //length extention
+	#define SS_MHR_LEN					(2UL) //length extension
 #else
 	#define SS_MHR_LEN					(1UL)
 #endif
