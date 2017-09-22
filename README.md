@@ -16,9 +16,9 @@ An end device can operate with a low-cost 8K-RAM 128K-Flash MCU or other similar
 First, specify an operating frequency.
 
 Select channel 0x1A (26):
-
+ ```
  SKSREG␣S08␣1A
-
+ ```
 Next, set the station ID.
 
 Set the station ID to 0x12345678:
