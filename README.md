@@ -16,24 +16,28 @@ An end device can operate with a low-cost 8K-RAM 128K-Flash MCU or other similar
 First, specify an operating frequency.
 
 Select channel 0x1A (26):
-SKSREG␣S08␣1A
+
+ SKSREG␣S08␣1A
 
 Next, set the station ID.
 
 Set the station ID to 0x12345678:
-SKSREG␣S05␣12345678
+
+ SKSREG␣S05␣12345678
 
 A station ID is a unique number to identify every station. You need to take care not to give the same ID to different stations.
 
 Next, set the pre-shared key for connection.
 
 Set the PSK:
-SKSETPSK␣11111111222222223333333344444444
+
+ SKSETPSK␣11111111222222223333333344444444
 
 Finally, change the operation type to station to start beacon transmission.
 
 Set the operation type to 0:
-SKSREG␣S02␣0
+
+ SKSREG␣S02␣0
 
 If the station ID is the initial value (0xFFFFFFFF), setting S02 to 0 does not start beacon transmission.
 
