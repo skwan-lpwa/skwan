@@ -502,10 +502,15 @@ void SSMac_Task(void) {
 			}
 
 		clear_down_slot:
-			if( current > numslot ){
-				downslot =  (SK_UB)(current - numslot - 1);
-			}				
-
+			//if( current > numslot ){
+			//	downslot =  (SK_UB)(current - numslot - 1);
+			//}
+	
+			//20170708 Guard slot’Ç‰Á‘Î‰ž
+			if( current > (numslot + 1) ){
+				downslot =  (SK_UB)(current - numslot - 2);
+			}
+			
 			if( downslot != 0xFF ){
 				pend_inf = FindPendingBufOfSlot(downslot);
 				if( pend_inf != NULL ){
@@ -972,7 +977,10 @@ void SSMac_Task(void) {
 					if( down_slot != 0xFF ){
 						SK_UH abs_slot;
 						//convert down slot -> absolute slot num
-						abs_slot = GetUpSlotNum(gnSSMac_SlotMode) + down_slot + 1;
+						//abs_slot = GetUpSlotNum(gnSSMac_SlotMode) + down_slot + 1;
+						
+						//20170708 fix Guard slot•ª‚³‚ç‚É1‰ÁŽZ‚·‚é•K—v‚ ‚è
+						abs_slot = GetUpSlotNum(gnSSMac_SlotMode) + down_slot + 1 + 1;
 						
 						PendInf->m_Packet->m_TxOptions &= ~SS_TXOPTIONS_INDIRECT; //Clear indirect opt
 						PendInf->m_DownSlot = down_slot;
@@ -1077,7 +1085,9 @@ void SSMac_Task(void) {
 				#endif
 				
 				if( pend_slot != 0xFF ){
-					gnPendingSlot = GetUpSlotNum(gnSSMac_SlotMode) + pend_slot + 1;
+					//gnPendingSlot = GetUpSlotNum(gnSSMac_SlotMode) + pend_slot + 1;
+					//20170708 Guard slot•ª ’Ç‰Á‚Å‰ÁŽZ
+					gnPendingSlot = GetUpSlotNum(gnSSMac_SlotMode) + pend_slot + 2;
 				}
 				
 				SS_STATS(mac.recv_ack);
