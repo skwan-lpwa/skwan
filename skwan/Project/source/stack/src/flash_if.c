@@ -57,8 +57,8 @@
 //	 FlashBlockWrite
 // -------------------------------------------------
 SK_UB FlashBlockWrite(SK_UW sector, SK_UH bank, SK_UB* data, SK_UH size){
-    SK_UW ret;
-    SK_UW start_addr;
+	SK_UW ret;
+	SK_UW start_addr;
 	SK_UW end_addr;
 	SK_UW addr;
 	SK_UW write_len;
@@ -86,53 +86,53 @@ SK_UB FlashBlockWrite(SK_UW sector, SK_UH bank, SK_UB* data, SK_UH size){
 	Hardware_DisableInterrupt();
 	
 	while( addr < end_addr ){
-        ret = FLC_EraseSector( UX_FLC0, addr );
-        if( ret != FLC_RESULT_OK ){
+		ret = FLC_EraseSector( UX_FLC0, addr );
+		if( ret != FLC_RESULT_OK ){
 			Hardware_EnableInterrupt();
-            return( 1 );
-        }
-        addr += FLASH_BLOCK_SIZE;
-    }
+			return( 1 );
+		}
+		addr += FLASH_BLOCK_SIZE;
+	}
 
 	//
 	// write data
 	//
-    write_addr = start_addr;
-    write_len = size;         //MAX: 256 SK_UBs
-    data_buf = data;
+	write_addr = start_addr;
+	write_len = size;         //MAX: 256 SK_UBs
+	data_buf = data;
 
-    while( write_len != 0 ){
-        write_data = (SK_UW)(data_buf[0]) |
-                    (SK_UW)(data_buf[1] << 8) |
-                    (SK_UW)(data_buf[2] << 16)|
-                    (SK_UW)(data_buf[3] << 24);
-        data_buf += 4;
-        ret = FLC_WriteFlash( UX_FLC0, write_addr, (uint32_t*)&write_data, 4 );
+	while( write_len != 0 ){
+		write_data = (SK_UW)(data_buf[0]) |
+					(SK_UW)(data_buf[1] << 8) |
+					(SK_UW)(data_buf[2] << 16)|
+					(SK_UW)(data_buf[3] << 24);
+		data_buf += 4;
+		ret = FLC_WriteFlash( UX_FLC0, write_addr, (uint32_t*)&write_data, 4 );
         
-        if( ret != FLC_RESULT_OK ){
+		if( ret != FLC_RESULT_OK ){
 			Hardware_EnableInterrupt();
-            return( 1 );
-        }
-        write_addr += 4;
-        write_len -= 4;
+			return( 1 );
+		}
+		write_addr += 4;
+		write_len -= 4;
     }
 	
 	//
 	// verify
 	//
-    verify_addr = (SK_UB*)start_addr;
-    write_len = size;
-    data_buf = data;
+	verify_addr = (SK_UB*)start_addr;
+	write_len = size;
+	data_buf = data;
 
-    while( write_len != 0 ){
-        if( *data_buf != *verify_addr ){
+	while( write_len != 0 ){
+		if( *data_buf != *verify_addr ){
 			Hardware_EnableInterrupt();
-            return( 1 );
-        }
-        verify_addr++;
-        data_buf++;
-        write_len -= 1;
-    }
+			return( 1 );
+		}
+		verify_addr++;
+		data_buf++;
+		write_len -= 1;
+	}
 
 	Hardware_EnableInterrupt();
 	return 0;
@@ -158,7 +158,7 @@ SK_UB FlashBlockRead(SK_UW sector, SK_UH bank, SK_UB* data, SK_UH size){
 
 	for( i = 0; i < size; i++ ){
 		data[i] = start_addr_ptr[i];
-	}	
+	}
 	
 	return 0;
 }

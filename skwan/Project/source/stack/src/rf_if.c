@@ -78,16 +78,16 @@ SK_UW gPSDUGoldSeed;
 // -------------------------------------------------
 
 void rf_reg_wr(SK_UB adr, SK_UB dat) {
-    SK_UB	cmd;
+	SK_UB	cmd;
 
 	cmd = adr<<1 | 0x01;
 
-    RF_Activate_SEN();
-    
-    spi2RegAccess(cmd, dat);
-	
-    RF_Deactivate_SEN();
-	
+	RF_Activate_SEN();
+
+	spi2RegAccess(cmd, dat);
+
+	RF_Deactivate_SEN();
+
     return;
 }
 
@@ -97,7 +97,7 @@ void rf_reg_block_wr(SK_UB adr, SK_UB* dat, SK_UH len) {
 
 	cmd = adr<<1 | 0x01;
 
-    RF_Activate_SEN();
+	RF_Activate_SEN();
 
 	#ifdef USE_DMAC
 	start_dmac_spi2();
@@ -107,23 +107,23 @@ void rf_reg_block_wr(SK_UB adr, SK_UB* dat, SK_UH len) {
 	spiBurstAccess(cmd, dat, len);
 	#endif
 	
-    RF_Deactivate_SEN();
+	RF_Deactivate_SEN();
 
     return;
 }
 
 
 SK_UB rf_reg_rd(SK_UB adr) {
-    SK_UB rdata;
-    SK_UB cmd;
+	SK_UB rdata;
+	SK_UB cmd;
 
 	cmd = adr<<1 & 0xFE;
 
-    RF_Activate_SEN();
+	RF_Activate_SEN();
 
-    rdata = spi2RegAccess(cmd, DUMMY_BYTE);
-	
-    RF_Deactivate_SEN();
+	rdata = spi2RegAccess(cmd, DUMMY_BYTE);
+
+	RF_Deactivate_SEN();
 
     return  rdata;
 }
@@ -134,7 +134,7 @@ SK_UB   rf_reg_block_rd(SK_UB adr, SK_UB* dat, SK_UH len) {
 
 	cmd = adr<<1 & 0xFE;
 
-    RF_Activate_SEN();
+	RF_Activate_SEN();
     
 	#ifdef USE_DMAC
 	start_dmac_spi2();
@@ -144,7 +144,7 @@ SK_UB   rf_reg_block_rd(SK_UB adr, SK_UB* dat, SK_UH len) {
 	spiBurstAccess(cmd, dat, len);
 	#endif
 	
-    RF_Deactivate_SEN();
+	RF_Deactivate_SEN();
 
     return  len;
 }
@@ -155,14 +155,14 @@ SK_UB   rf_reg_block_rd(SK_UB adr, SK_UB* dat, SK_UH len) {
 // -------------------------------------------------
 
 void rf_spi_write(SK_UB dat) {	
-    /*
+	/*
 		 -> use spiRegAccess instead of this
 	*/
 }
 
 
 SK_UB rf_spi_read(void) {
-    /*
+	/*
 		 -> use spiRegAccess instead of this
 	*/
 	return 0;
@@ -309,9 +309,9 @@ void 	ml7404_trx_off(void)
 
 SK_BOOL ml7404_change_state_and_wait(SK_UB mode, SK_BOOL wait)
 {
-  	SK_UB stat;
+	SK_UB stat;
 	SK_UB cond;
-  	SK_BOOL ans = TRUE;
+	SK_BOOL ans = TRUE;
 	
 	if( mode == 0x03 ){ //force trx off
 	  	cond = 0x80;
@@ -339,7 +339,7 @@ SK_BOOL ml7404_change_state_and_wait(SK_UB mode, SK_BOOL wait)
 		ml7404_reg_write8(b7_SHR_GOLD_SEED2, (SK_UB)(gSHRGoldSeed>>16));
 		ml7404_reg_write8(b7_SHR_GOLD_SEED1, (SK_UB)(gSHRGoldSeed>>8));
 		ml7404_reg_write8(b7_SHR_GOLD_SEED0, (SK_UB)(gSHRGoldSeed));
-  
+
 		//PSDU Gold Seed 再設定
 		ml7404_reg_write8(b7_PSDU_GOLD_SEED3, (SK_UB)(gPSDUGoldSeed>>24));
 		ml7404_reg_write8(b7_PSDU_GOLD_SEED2, (SK_UB)(gPSDUGoldSeed>>16));
@@ -354,10 +354,10 @@ SK_BOOL ml7404_change_state_and_wait(SK_UB mode, SK_BOOL wait)
 	ml7404_reg_write8(b0_RF_STATUS, mode);
 	
 	if( wait == FALSE ){
-	  	RF_UNLOCK();
-	  	return TRUE;
+		RF_UNLOCK();
+		return TRUE;
 	}
-  
+
 	//wait for RF state change event
 	//正常系では10 loops以内に状態遷移完了
 	ml7404_wait_for_int_event(INT_STATUS_CHANGED, 100);
@@ -365,8 +365,8 @@ SK_BOOL ml7404_change_state_and_wait(SK_UB mode, SK_BOOL wait)
 	RF_UNLOCK();
 	return ans;
 }
-							
-							
+
+
 
 //
 // Interrupt
@@ -427,9 +427,9 @@ void	ml7404_clear_interrupt_source(SK_UW clear_bit_mask)
 //
 SK_BOOL ml7404_wait_for_int_event(SK_UW stat, SK_UB guard_cnd)
 {
-  	SK_UB loop;
+	SK_UB loop;
 	
- 	loop = guard_cnd;
+	loop = guard_cnd;
 	
 	while(1){
 		SK_UW source;
@@ -466,18 +466,18 @@ SK_UB	ml7404_get_cca_status(void)
 void	ml7404_clear_cca_status(void)
 {
 	/*
-  	CCA完了割込みをクリアするとCCA_RSLT[1:0]([CCA_CTRL: B0 0x39(1-0)])は初期化(0b00)されます。
-  	CCA_RSLT[1:0]はCCA完了割込みをクリアする前に読み出して下さい。
-  	*/
-  	ml7404_reg_write_after_bit_and(b0_CCA_CTRL, 0xFC);
+	CCA完了割込みをクリアするとCCA_RSLT[1:0]([CCA_CTRL: B0 0x39(1-0)])は初期化(0b00)されます。
+	CCA_RSLT[1:0]はCCA完了割込みをクリアする前に読み出して下さい。
+	*/
+	ml7404_reg_write_after_bit_and(b0_CCA_CTRL, 0xFC);
 }
 
 SK_UB	ml7404_get_rssi(void)
 {
-  	SK_UB rssi;
+	SK_UB rssi;
 	
 	rssi = ml7404_reg_read8(b0_ED_RSLT);
-	
+
 	return rssi;
 }
 
@@ -537,13 +537,13 @@ SLEEP1
 */
 void	ml7404_sleep(void)
 {
- 	//ml7404_trx_off();
-	  
-  	//RC32K_EN = 0
-  	ml7404_reg_write8(b0_CLK_SET2,(ml7404_reg_read8(b0_CLK_SET2) & ~(0x01<<3)));
-	
-  	//RF sleep1 mode
-  	ml7404_reg_write8(b0_SLEEP_WU_SET, (ml7404_reg_read8(b0_SLEEP_WU_SET) | 0x01));
+	//ml7404_trx_off();
+
+	//RC32K_EN = 0
+	ml7404_reg_write8(b0_CLK_SET2,(ml7404_reg_read8(b0_CLK_SET2) & ~(0x01<<3)));
+
+	//RF sleep1 mode
+	ml7404_reg_write8(b0_SLEEP_WU_SET, (ml7404_reg_read8(b0_SLEEP_WU_SET) | 0x01));
 }
 
 // -------------------------------------------------
@@ -552,11 +552,11 @@ void	ml7404_sleep(void)
 
 void	ml7404_wakeup(void)
 {
-  	//wakeup trigger
+	//wakeup trigger
 	ml7404_reg_write8(b0_SLEEP_WU_SET, 0x06);
 
 	wait_no_timer(WAIT_1MS/2); //about 500us
-	
+
 	//TBD
 	//RF was sleep mode1, reboot is not necessary
 	rf_reboot();
@@ -577,9 +577,9 @@ void	ml7404_reset_seeds(void)
 //count 7000 => about 1.04ms
 //busy loop
 static void wait_no_timer(SK_UW count){
-    SK_UW     loop1;
-    for(loop1=0;loop1<count;loop1++);
-    return;
+	SK_UW     loop1;
+	for(loop1=0;loop1<count;loop1++);
+	return;
 }
 
 
@@ -608,7 +608,7 @@ void rf_init(void){
 
 //ML7404 HW Reset
 void rf_reset(void){
-  	wait_no_timer(WAIT_1MS); //RESETN解除遅延時間 TRDL1
+	wait_no_timer(WAIT_1MS); //RESETN解除遅延時間 TRDL1
 	
 	RF_Deactivate_Reset(); //デフォルトLowのため一度hiに入れる必要あり
 	

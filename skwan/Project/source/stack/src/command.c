@@ -75,7 +75,7 @@ extern SK_UH GetAllSlotNum(SK_UB mode);
 //   State machine
 // -------------------------------------------------
 SK_STATESTART(METABCN);	
-SK_STATESTART(METABCN_STATE);	
+SK_STATESTART(METABCN_STATE);
 SK_STATESTART(TRACKER_STATE);
 
 
@@ -125,7 +125,7 @@ SK_UB gSendDataBuffer[ MAX_DATA_SIZE ];
 //   SK Command working 
 // -------------------------------------------------
 //echo back is off when 0
-SK_BOOL gEchoBack = TRUE; 
+SK_BOOL gEchoBack = TRUE;
 
 //exec join cmd when sync event is received
 SK_BOOL gAutoJoin = TRUE;
@@ -150,8 +150,8 @@ extern SK_UW gPSDUGoldSeed;
 
 #ifdef USE_SAVE_PARAM
 	#define PERBLOCK 		498 //= 0x1C03E400
-	#define MAC_PERBLOCK 	499 //= 0x1C03E400
-	#define PERBANK 		0
+	#define MAC_PERBLOCK	499 //= 0x1C03E400
+	#define PERBANK			0
 	#define PERDATA_SIZE	128
 	static SK_UB			gPerData[ PERDATA_SIZE ];
 #endif

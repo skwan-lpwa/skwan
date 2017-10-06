@@ -46,14 +46,14 @@
 //   Global PIBs
 // -------------------------------------------------
 SK_UB			gnPHY_LowerLayer;
-SK_UB 			gnPHY_UpperLayer;
-SK_UB  			gnPHY_CurrentChannel;
+SK_UB			gnPHY_UpperLayer;
+SK_UB			gnPHY_CurrentChannel;
 SK_UB			gnPHY_CurrentTRX;
 
 //Interrupt flags
-volatile SK_UB 	gnPHY_TxCompleted;
-volatile SK_UB 	gnPHY_CCABusy;
-volatile SK_BOOL 	gnPHY_SymbolTimerCompleted;
+volatile SK_UB	gnPHY_TxCompleted;
+volatile SK_UB	gnPHY_CCABusy;
+volatile SK_BOOL	gnPHY_SymbolTimerCompleted;
 
 //for debug flag
 SK_UB			gnPHY_TestMode;
@@ -121,10 +121,10 @@ void SK_PHY_Init(void) {
 	gnPHY_LowerLayer		= 0;
 	gnPHY_UpperLayer		= SK_LAYER_SS_MAC;
 	
-	gnPHY_CurrentChannel 	= 24;
+	gnPHY_CurrentChannel	= 24;
 	gnPHY_CurrentTRX		= SK_PHY_RX_ON;
 	
-	gnPHY_TestMode 			= 0;
+	gnPHY_TestMode			= 0;
 
 	SSMac_Wakeup();
 	

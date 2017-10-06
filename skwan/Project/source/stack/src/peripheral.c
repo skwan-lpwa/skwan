@@ -153,11 +153,11 @@ SK_UB gTimerMode;
 void 	init_peripheral(void)
 {
 	/*クロック初期設定 メインクロックをPLLに設定*/
-  	init_system();
+	init_system();
 
 	//Flash controller
-    FLC_Init( UX_FLC0 );
-    
+	FLC_Init( UX_FLC0 );
+
 #if 1
 	//MCU Power save settings
 	syscon_writePPM1( ~(0x00000001<<20) ); //TimerA Enable
@@ -167,9 +167,9 @@ void 	init_peripheral(void)
 	//syscon_writePCLKDIS( ~(0x00000001<<20) ); // org = 0x00000000
 #endif
   
-  	UART_Initialize();
+	UART_Initialize();
 	
-    spi2Init(USE_DMAC);
+	spi2Init(USE_DMAC);
 	//spi2Init(UNUSE_DMAC);
 	
 	//clock sync calibration value
@@ -200,23 +200,23 @@ void 	init_peripheral(void)
 
 
 static void init_system(void){
-    INIT_PARAM_Type init_param = {
-        MODECNT_HSCR_ENABLE | MODECNT_CR32K_ENABLE | MODECNT_XTAL32K_ENABLE,
-        MODECNT_PLL_WTCR_25 | MODECNT_XTAL_WTCR_3_125m | MODECNT_CR32K_WTCR_10 | MODECNT_HSCR_WTCR_1200,
-        MODECNT_PLL_DONE_NOT_MASK | MODECNT_XTAL32K_DONE_NOT_MASK | MODECNT_CR32K_DONE_NOT_MASK | MODECNT_HSCR_DONE_NOT_MASK
-    };
+	INIT_PARAM_Type init_param = {
+		MODECNT_HSCR_ENABLE | MODECNT_CR32K_ENABLE | MODECNT_XTAL32K_ENABLE,
+		MODECNT_PLL_WTCR_25 | MODECNT_XTAL_WTCR_3_125m | MODECNT_CR32K_WTCR_10 | MODECNT_HSCR_WTCR_1200,
+		MODECNT_PLL_DONE_NOT_MASK | MODECNT_XTAL32K_DONE_NOT_MASK | MODECNT_CR32K_DONE_NOT_MASK | MODECNT_HSCR_DONE_NOT_MASK
+	};
 
-    PllCtrlPARAM_Type pllctrl_param = {
-        MODECNT_PLL_PDN0_DISABLE | MODECNT_PLL_BYPASS0_DISABLE | (0x4D6 << 2) | MODECNT_PLL_DREF0_1,
-        MODECNT_PLL_XTAL32K,
-        MODECNT_PLL_DIV_1
-    };
+	PllCtrlPARAM_Type pllctrl_param = {
+		MODECNT_PLL_PDN0_DISABLE | MODECNT_PLL_BYPASS0_DISABLE | (0x4D6 << 2) | MODECNT_PLL_DREF0_1,
+		MODECNT_PLL_XTAL32K,
+		MODECNT_PLL_DIV_1
+	};
 
-    ClkselPARAM_Type clksel_param = { MODECNT_MAIN_PLL , MODECNT_SUB_XTAL32K };
+	ClkselPARAM_Type clksel_param = { MODECNT_MAIN_PLL , MODECNT_SUB_XTAL32K };
 
-    modecnt_InitClk(&init_param);
-    modecnt_StartPll(&pllctrl_param);
-    modecnt_SelClk(&clksel_param);
+	modecnt_InitClk(&init_param);
+	modecnt_StartPll(&pllctrl_param);
+	modecnt_SelClk(&clksel_param);
 }
 
 
@@ -231,32 +231,32 @@ void TMRA_TIMER1_IRQHandler( void )
 
 void init_tmr( void )
 {
-    MODE_CNT0->MODE_CNT_CLKGEN0 &= ~(0x00000001UL<<4);  ////CLKGEN[4] = 0, A subclock source is changed into XTAL32KHz
-    MODE_CNT0->MODE_CNT_CLKGEN1|= 0x00000002UL;     //The clock source of TimerA is changed into a subclock.
- 
+	MODE_CNT0->MODE_CNT_CLKGEN0 &= ~(0x00000001UL<<4);  ////CLKGEN[4] = 0, A subclock source is changed into XTAL32KHz
+	MODE_CNT0->MODE_CNT_CLKGEN1|= 0x00000002UL;     //The clock source of TimerA is changed into a subclock.
+
 	tmr_clrINTSTATUS( UX_TMRA_TIMER1 );
-	
-    NVIC_ClearPendingIRQ( TMRA_TIMER1_IRQn );
-    NVIC_EnableIRQ( TMRA_TIMER1_IRQn );
+
+	NVIC_ClearPendingIRQ( TMRA_TIMER1_IRQn );
+	NVIC_EnableIRQ( TMRA_TIMER1_IRQn );
 }
 
 
 void start_tmr( uint32_t timer_cnt )
 {
-    TMR_MODE_Type mode;
+	TMR_MODE_Type mode;
 
-    mode.ctrl = TMR_INT_NOT_MASK | TMR_MOD_USER;
-    mode.lval = timer_cnt;
-    tmr_init( UX_TMRA_TIMER1, &mode );
+	mode.ctrl = TMR_INT_NOT_MASK | TMR_MOD_USER;
+	mode.lval = timer_cnt;
+	tmr_init( UX_TMRA_TIMER1, &mode );
 
-    tmr_start( UX_TMRA_TIMER1 );
+	tmr_start( UX_TMRA_TIMER1 );
 }
 
 
 void stop_tmr( void )
 {
-    tmr_stop( UX_TMRA_TIMER1 );
-    tmr_clrINTSTATUS( UX_TMRA_TIMER1 );   /* Status Clear */
+	tmr_stop( UX_TMRA_TIMER1 );
+	tmr_clrINTSTATUS( UX_TMRA_TIMER1 );   /* Status Clear */
 }
 
 // -------------------------------------------------
@@ -291,7 +291,7 @@ static void Timer_Interrupt(void){
 		//
 	}  else if( gTimerMode == 1 ){
 	  
-	  	SleepTimer_Interrupt();
+		SleepTimer_Interrupt();
 	
 	}
 }
@@ -305,9 +305,9 @@ static void Adjust_960(void){
 		//DebugPort_Set(0, ((~DebugPort_Get(0)) & 0x01));	
 		//#endif
 		
-	  	gAdjusted = TRUE;
+		gAdjusted = TRUE;
 		stop_tmr();
-	  	start_tmr(CLK_10m_VALUE_32XTAL_Adjust);
+		start_tmr(CLK_10m_VALUE_32XTAL_Adjust);
 	} else {
 	  	if( gAdjusted == TRUE ){
 			//#ifdef DEBUG_GPIO_TIMER
@@ -316,12 +316,12 @@ static void Adjust_960(void){
 			
 			gAdjusted = FALSE;
 			stop_tmr();
-	  		start_tmr(CLK_10m_VALUE_32XTAL);
+			start_tmr(CLK_10m_VALUE_32XTAL);
 		}
 	}
 	
 	if( gSlotUnitCount == 96 ){
-	  	gSlotUnitCount = 0;
+		gSlotUnitCount = 0;
 	}
 }
 
@@ -394,21 +394,21 @@ static void SleepTimer_Finalize(void){
 ターゲットスロットの80msec手前でウェイクアップするよう制御
 */
 static void SleepTimer_Interrupt(void){
-  	#ifdef DEBUG_GPIO_SLEEP
-  	DebugPort_Set(0, ((~DebugPort_Get(0)) & 0x01));
+	#ifdef DEBUG_GPIO_SLEEP
+	DebugPort_Set(0, ((~DebugPort_Get(0)) & 0x01));
 	#endif
 	
 	if( gLastOneShot == FALSE ){
-	 	SSMac_IncCurrentSlot(FALSE);
+		SSMac_IncCurrentSlot(FALSE);
 		SK_IncrementEventTick(960);
 	} else {
-	   	SK_IncrementEventTick(880);
+		SK_IncrementEventTick(880);
 	}
 	
 	//wake interrupt triggered
 	if( gLastOneShot == FALSE && gWakeTriggered == TRUE ){
 		//Start stack running again
-	  	SleepTimer_Finalize();
+		SleepTimer_Finalize();
 		
 		SleepTimer_Stop();
 		
@@ -445,7 +445,7 @@ static void init_uart(void)
 	UART_PARAM_Type param;
 
 	/*ポート設定 UART0(GPIO8-11)*/
-    port_uart(UART0_8_11);
+	port_uart(UART0_8_11);
 
 /* =============================== */
 /* Data Transmission               */
@@ -457,26 +457,26 @@ static void init_uart(void)
 /* =============================== */
 /*UART通信用初期設定*/
 
-    param.dlh = (BAUDRATE_115200 >> 8) & 0xFFu;
-    param.dll = BAUDRATE_115200 & 0xFFu;
-    param.lpdlh = (BAUDRATE_115200 >> 8) & 0xFFu;
-    param.lpdll = BAUDRATE_115200 & 0xFFu;
-    param.lcr = UART_BC_TXD_OUT | UART_STICK_PARITY_DISABLE | UART_EPS_ODD | UART_PEN_DISABLE | UART_STOP_1BIT | UART_DLS_8BIT;
-    param.mcr = UART_SIRE_DISABLE | UART_AFCE_DISABLE | UART_LB_DISABLE | UART_OUT2_H | UART_OUT1_H | UART_RTS_H | UART_DTR_H;
-    param.far = UART_FAR_DISABLE;
-    param.fcr = UART_RT_ONE | UART_TET_EMPTY | UART_XFIFOR_RESET | UART_RFIFOR_RESET | UART_FIFOE_ENABLE;
-    param.ier = UART_PTIME_ENABLE | UART_EDSSI_NO_MASK | UART_ELSI_NO_MASK | UART_ETBEI_NO_MASK | UART_ERBFI_NO_MASK;
+	param.dlh = (BAUDRATE_115200 >> 8) & 0xFFu;
+	param.dll = BAUDRATE_115200 & 0xFFu;
+	param.lpdlh = (BAUDRATE_115200 >> 8) & 0xFFu;
+	param.lpdll = BAUDRATE_115200 & 0xFFu;
+	param.lcr = UART_BC_TXD_OUT | UART_STICK_PARITY_DISABLE | UART_EPS_ODD | UART_PEN_DISABLE | UART_STOP_1BIT | UART_DLS_8BIT;
+	param.mcr = UART_SIRE_DISABLE | UART_AFCE_DISABLE | UART_LB_DISABLE | UART_OUT2_H | UART_OUT1_H | UART_RTS_H | UART_DTR_H;
+	param.far = UART_FAR_DISABLE;
+	param.fcr = UART_RT_ONE | UART_TET_EMPTY | UART_XFIFOR_RESET | UART_RFIFOR_RESET | UART_FIFOE_ENABLE;
+	param.ier = UART_PTIME_ENABLE | UART_EDSSI_NO_MASK | UART_ELSI_NO_MASK | UART_ETBEI_NO_MASK | UART_ERBFI_NO_MASK;
 
-    uart_initCtrlParam(UX_UART0, &param, &CtrlParam);
+	uart_initCtrlParam(UX_UART0, &param, &CtrlParam);
 
-    //uart_readINTSTATUS(UX_UART0);
-    
-    uart_clrbitIE( UX_UART0, UART_BITMASK_ETBEI );
-	
-    /* interrupt enable */
+	//uart_readINTSTATUS(UX_UART0);
+
+	uart_clrbitIE( UX_UART0, UART_BITMASK_ETBEI );
+
+	/* interrupt enable */
 	NVIC_SetPriority( UART0_IRQn, 2 );
-    NVIC_ClearPendingIRQ( UART0_IRQn );
-    NVIC_EnableIRQ( UART0_IRQn );
+	NVIC_ClearPendingIRQ( UART0_IRQn );
+	NVIC_EnableIRQ( UART0_IRQn );
 }
 
 
@@ -486,28 +486,28 @@ ToDo: ORE etc uart errorのハンドリング
 */
 
 void UART0_IRQHandler(void)
-{
-    uint8_t iir= (uint8_t)(UX_UART0->UARTn_IIR & 0x0F);
+	{
+	uint8_t iir= (uint8_t)(UX_UART0->UARTn_IIR & 0x0F);
 	uint8_t input;
 
-    switch(iir)
-    {
-    case UART_IID_INT_LV1:
-        UX_UART0->UARTn_LSR;
+	switch(iir)
+	{
+	case UART_IID_INT_LV1:
+		UX_UART0->UARTn_LSR;
 		gUARTOverRun = TRUE;
-        break;
-    case UART_IID_INT_LV4:
-        UX_UART0->UARTn_MSR;
-        break;
-    case UART_IID_INT_LV3:
-        break;
-    case UART_IID_INT_LV2_1:
-        input = UX_UART0->UARTn_RBR;
+		break;
+	case UART_IID_INT_LV4:
+		UX_UART0->UARTn_MSR;
+		break;
+	case UART_IID_INT_LV3:
+		break;
+	case UART_IID_INT_LV2_1:
+		input = UX_UART0->UARTn_RBR;
 		UART_RxInt((SK_UB)input);
-        break;
-    default:
-        break;
-    }
+		break;
+	default:
+		break;
+	}
 }
 
 
@@ -516,7 +516,7 @@ void UART0_IRQHandler(void)
 // -------------------------------------------------
 void UART_Initialize(void) {
 	init_uartbuf();
-    init_uart();
+	init_uart();
 }
 
 
@@ -546,8 +546,8 @@ void UART_PutChar(SK_UB ch) {
 	uart_writeDATA(UX_UART0, ch);
 	
 	while (uart_isTransmit(UX_UART0) != UART_TRANS_FIN) {
-        ;
-    }
+		;
+	}
 }
 
 
@@ -721,13 +721,13 @@ void init_irq(void){
 
 void	irq_rf_enable(void)
 {
-    NVIC_EnableIRQ( RF_IRQn );
+	NVIC_EnableIRQ( RF_IRQn );
 }
 
 
 void	irq_rf_disable(void)
 {
-    NVIC_DisableIRQ( RF_IRQn );
+	NVIC_DisableIRQ( RF_IRQn );
 }
 
 
@@ -771,110 +771,106 @@ void start_dmac_spi2(void){
 	
 	NVIC_ClearPendingIRQ(DMAC0_IRQn);
 	NVIC_SetPriority(DMAC0_IRQn, 1);
-    NVIC_EnableIRQ(DMAC0_IRQn) ;
+	NVIC_EnableIRQ(DMAC0_IRQn) ;
 }
 
 void end_dmac_spi2(void){
 	while(dmac_spi2_done==0);
 	
-    NVIC_DisableIRQ(DMAC0_IRQn);
-    NVIC_ClearPendingIRQ(DMAC0_IRQn);
+	NVIC_DisableIRQ(DMAC0_IRQn);
+	NVIC_ClearPendingIRQ(DMAC0_IRQn);
 }
 
 
 void DMAC0_IRQHandler(void)
 {
-    uint32_t cnt;
+	uint32_t cnt;
     
-    if(dmac_readDAR(UX_DMAC0_CH1) == 0x00000000u){
-        /* SPI2 WRITE */
-        if((dmac_readSTAT_TFR(UX_DMAC0_COMM) & DMAC_STAT_CH0) != 0){
-            uint32_t irqflg;
-            irqflg = dmac_readSTAT_INT(UX_DMAC0_COMM);
-            if( (irqflg & DMAC_INTMASK_TFR) == DMAC_INTMASK_TFR ){
-                dmac_clrbitMASK_TFR(UX_DMAC0_COMM, DMAC_CH0);
-                dmac_clrbitMASK_TFR(UX_DMAC0_COMM, DMAC_CH1);
-                dmac_clrTFR(UX_DMAC0_COMM, DMAC_CH0);
-                dmac_clrTFR(UX_DMAC0_COMM, DMAC_CH1);
-                dmac_clrBLOCK(UX_DMAC0_COMM, DMAC_CH0);
-                dmac_clrBLOCK(UX_DMAC0_COMM, DMAC_CH1);
-                dmac_clrSRC_TRAN(UX_DMAC0_COMM, DMAC_CH0);
-                dmac_clrSRC_TRAN(UX_DMAC0_COMM, DMAC_CH1);
-                dmac_clrDST_TRAN(UX_DMAC0_COMM, DMAC_CH0);
-                dmac_clrDST_TRAN(UX_DMAC0_COMM, DMAC_CH1);
-                dmac_clrbitMASK_ERR(UX_DMAC0_COMM, DMAC_CH0);
-                dmac_clrbitMASK_ERR(UX_DMAC0_COMM, DMAC_CH1);
-                dmac_clrERR(UX_DMAC0_COMM, DMAC_CH0);
-                dmac_clrERR(UX_DMAC0_COMM, DMAC_CH1);
-            }
-            if( (irqflg & DMAC_INTMASK_ERR) == DMAC_INTMASK_ERR ){
-                dmac_clrbitMASK_ERR(UX_DMAC0_COMM, DMAC_CH0);
-                dmac_clrbitMASK_ERR(UX_DMAC0_COMM, DMAC_CH1);
-                dmac_clrERR(UX_DMAC0_COMM, DMAC_CH0);
-                dmac_clrERR(UX_DMAC0_COMM, DMAC_CH1);
-            }
-            
-            /* DMAC 処理停止 */
-            dmac_clrbitCH_EN(UX_DMAC0_COMM, DMAC_CH0);
-            dmac_clrbitCH_EN(UX_DMAC0_COMM, DMAC_CH1);
-            
+	if(dmac_readDAR(UX_DMAC0_CH1) == 0x00000000u){
+	    /* SPI2 WRITE */
+		if((dmac_readSTAT_TFR(UX_DMAC0_COMM) & DMAC_STAT_CH0) != 0){
+			uint32_t irqflg;
+			irqflg = dmac_readSTAT_INT(UX_DMAC0_COMM);
+			if( (irqflg & DMAC_INTMASK_TFR) == DMAC_INTMASK_TFR ){
+				dmac_clrbitMASK_TFR(UX_DMAC0_COMM, DMAC_CH0);
+				dmac_clrbitMASK_TFR(UX_DMAC0_COMM, DMAC_CH1);
+				dmac_clrTFR(UX_DMAC0_COMM, DMAC_CH0);
+				dmac_clrTFR(UX_DMAC0_COMM, DMAC_CH1);
+				dmac_clrBLOCK(UX_DMAC0_COMM, DMAC_CH0);
+				dmac_clrBLOCK(UX_DMAC0_COMM, DMAC_CH1);
+				dmac_clrSRC_TRAN(UX_DMAC0_COMM, DMAC_CH0);
+				dmac_clrSRC_TRAN(UX_DMAC0_COMM, DMAC_CH1);
+				dmac_clrDST_TRAN(UX_DMAC0_COMM, DMAC_CH0);
+				dmac_clrDST_TRAN(UX_DMAC0_COMM, DMAC_CH1);
+				dmac_clrbitMASK_ERR(UX_DMAC0_COMM, DMAC_CH0);
+				dmac_clrbitMASK_ERR(UX_DMAC0_COMM, DMAC_CH1);
+				dmac_clrERR(UX_DMAC0_COMM, DMAC_CH0);
+				dmac_clrERR(UX_DMAC0_COMM, DMAC_CH1);
+			}
+			if( (irqflg & DMAC_INTMASK_ERR) == DMAC_INTMASK_ERR ){
+				dmac_clrbitMASK_ERR(UX_DMAC0_COMM, DMAC_CH0);
+				dmac_clrbitMASK_ERR(UX_DMAC0_COMM, DMAC_CH1);
+				dmac_clrERR(UX_DMAC0_COMM, DMAC_CH0);
+				dmac_clrERR(UX_DMAC0_COMM, DMAC_CH1);
+			}
+		    
+		    /* DMAC 処理停止 */
+			dmac_clrbitCH_EN(UX_DMAC0_COMM, DMAC_CH0);
+			dmac_clrbitCH_EN(UX_DMAC0_COMM, DMAC_CH1);
+		    
+			for(cnt = 0u; cnt < 0xffu; cnt++){	 /* Wait */
+				;
+			}
+		    
+			spi_disable(UX_SPI2);										/* 転送禁止 */
+			spi_writeCR(UX_SPI2, spi_readCR(UX_SPI2)&~SPI_SSNL_L);		/* SSn=Lowﾃﾞｨｾｰﾌﾞﾙ */
+			spi_clrFIFO(UX_SPI2);
+			/* SPI2受信FIFOダミーリード */
+			for(cnt = 0u; cnt < (dmac_readCTLH(UX_DMAC0_CH0)&0x00000fffu); cnt++){
+				spi_readDATA(UX_SPI2);
+				spi_clrALLINTSTATUS(UX_SPI2);
+				spi_clrFIFO(UX_SPI2);
+			}
+		}
+	}
+	else{
+		/* SPI2 READ */
+		if((dmac_readSTAT_TFR(UX_DMAC0_COMM) & DMAC_STAT_CH1) != 0){
+			uint32_t irqflg;
+			irqflg = dmac_readSTAT_INT(UX_DMAC0_COMM);
+			if( (irqflg & DMAC_INTMASK_TFR) == DMAC_INTMASK_TFR ){
+				dmac_clrbitMASK_TFR(UX_DMAC0_COMM, DMAC_CH0);
+				dmac_clrbitMASK_TFR(UX_DMAC0_COMM, DMAC_CH1);
+				dmac_clrTFR(UX_DMAC0_COMM, DMAC_CH0);
+				dmac_clrTFR(UX_DMAC0_COMM, DMAC_CH1);
+				dmac_clrBLOCK(UX_DMAC0_COMM, DMAC_CH0);
+				dmac_clrBLOCK(UX_DMAC0_COMM, DMAC_CH1);
+				dmac_clrSRC_TRAN(UX_DMAC0_COMM, DMAC_CH0);
+				dmac_clrSRC_TRAN(UX_DMAC0_COMM, DMAC_CH1);
+				dmac_clrDST_TRAN(UX_DMAC0_COMM, DMAC_CH0);
+				dmac_clrDST_TRAN(UX_DMAC0_COMM, DMAC_CH1);
+				dmac_clrbitMASK_ERR(UX_DMAC0_COMM, DMAC_CH0);
+				dmac_clrbitMASK_ERR(UX_DMAC0_COMM, DMAC_CH1);
+				dmac_clrERR(UX_DMAC0_COMM, DMAC_CH0);
+				dmac_clrERR(UX_DMAC0_COMM, DMAC_CH1);
+			}
+			if( (irqflg & DMAC_INTMASK_ERR) == DMAC_INTMASK_ERR ){
+				dmac_clrbitMASK_ERR(UX_DMAC0_COMM, DMAC_CH0);
+				dmac_clrbitMASK_ERR(UX_DMAC0_COMM, DMAC_CH1);
+				dmac_clrERR(UX_DMAC0_COMM, DMAC_CH0);
+				dmac_clrERR(UX_DMAC0_COMM, DMAC_CH1);
+			}
 
-            for(cnt = 0u; cnt < 0xffu; cnt++){                /* Wait */
-                ;
-            }
-            
-            spi_disable(UX_SPI2);                                       /* 転送禁止 */
-            spi_writeCR(UX_SPI2, spi_readCR(UX_SPI2)&~SPI_SSNL_L);      /* SSn=Lowﾃﾞｨｾｰﾌﾞﾙ */
-            spi_clrFIFO(UX_SPI2);
-            /* SPI2受信FIFOダミーリード */
-            for(cnt = 0u; cnt < (dmac_readCTLH(UX_DMAC0_CH0)&0x00000fffu); cnt++){
-                spi_readDATA(UX_SPI2);
-                spi_clrALLINTSTATUS(UX_SPI2);
-                spi_clrFIFO(UX_SPI2);
-            }
-            
-            
-        }
-    }
-    else{
-        /* SPI2 READ */
-        if((dmac_readSTAT_TFR(UX_DMAC0_COMM) & DMAC_STAT_CH1) != 0){
-            uint32_t irqflg;
-            irqflg = dmac_readSTAT_INT(UX_DMAC0_COMM);
-            if( (irqflg & DMAC_INTMASK_TFR) == DMAC_INTMASK_TFR ){
-                dmac_clrbitMASK_TFR(UX_DMAC0_COMM, DMAC_CH0);
-                dmac_clrbitMASK_TFR(UX_DMAC0_COMM, DMAC_CH1);
-                dmac_clrTFR(UX_DMAC0_COMM, DMAC_CH0);
-                dmac_clrTFR(UX_DMAC0_COMM, DMAC_CH1);
-                dmac_clrBLOCK(UX_DMAC0_COMM, DMAC_CH0);
-                dmac_clrBLOCK(UX_DMAC0_COMM, DMAC_CH1);
-                dmac_clrSRC_TRAN(UX_DMAC0_COMM, DMAC_CH0);
-                dmac_clrSRC_TRAN(UX_DMAC0_COMM, DMAC_CH1);
-                dmac_clrDST_TRAN(UX_DMAC0_COMM, DMAC_CH0);
-                dmac_clrDST_TRAN(UX_DMAC0_COMM, DMAC_CH1);
-                dmac_clrbitMASK_ERR(UX_DMAC0_COMM, DMAC_CH0);
-                dmac_clrbitMASK_ERR(UX_DMAC0_COMM, DMAC_CH1);
-                dmac_clrERR(UX_DMAC0_COMM, DMAC_CH0);
-                dmac_clrERR(UX_DMAC0_COMM, DMAC_CH1);
-            }
-            if( (irqflg & DMAC_INTMASK_ERR) == DMAC_INTMASK_ERR ){
-                dmac_clrbitMASK_ERR(UX_DMAC0_COMM, DMAC_CH0);
-                dmac_clrbitMASK_ERR(UX_DMAC0_COMM, DMAC_CH1);
-                dmac_clrERR(UX_DMAC0_COMM, DMAC_CH0);
-                dmac_clrERR(UX_DMAC0_COMM, DMAC_CH1);
-            }
-            
-            /* DMAC 処理停止 */
-            dmac_clrbitCH_EN(UX_DMAC0_COMM, DMAC_CH0);
-            dmac_clrbitCH_EN(UX_DMAC0_COMM, DMAC_CH1);
-            
-            spi_disable(UX_SPI2);                                       /* 転送禁止 */
-            spi_writeCR(UX_SPI2, spi_readCR(UX_SPI2)&~SPI_SSNL_L);      /* SSn=Lowﾃﾞｨｾｰﾌﾞﾙ */
-            
-            spi_clrFIFO(UX_SPI2);
-            
-        }
-    }
+			/* DMAC 処理停止 */
+			dmac_clrbitCH_EN(UX_DMAC0_COMM, DMAC_CH0);
+			dmac_clrbitCH_EN(UX_DMAC0_COMM, DMAC_CH1);
+
+			spi_disable(UX_SPI2);									/* 転送禁止 */
+			spi_writeCR(UX_SPI2, spi_readCR(UX_SPI2)&~SPI_SSNL_L);	/* SSn=Lowﾃﾞｨｾｰﾌﾞﾙ */
+
+			spi_clrFIFO(UX_SPI2);
+		}
+	}
 	dmac_spi2_done = 1;
 }
 
@@ -884,11 +880,11 @@ void DMAC0_IRQHandler(void)
 // -------------------------------------------------
 void MCU_Sleep(void) {
 	#ifdef DEBUG_GPIO_SLEEP
-  	DebugPort_Set(1, ((~DebugPort_Get(1)) & 0x01));
+	DebugPort_Set(1, ((~DebugPort_Get(1)) & 0x01));
 	#endif
 
 	gMCUSleeping = TRUE;
-	
+
 #if 0
 	MODE_CNT0->MODE_CNT_IOSET_SINT_CPU		= 0x00000285;
 	MODE_CNT0->MODE_CNT_IOSET_SDI_CPU		= 0x00000284;
@@ -911,13 +907,13 @@ void MCU_Sleep(void) {
 
 //実行=40us
 void MCU_Wakeup(void) {
- 	#ifdef DEBUG_GPIO_SLEEP
-  	DebugPort_Set(1, ((~DebugPort_Get(1)) & 0x01));
+	#ifdef DEBUG_GPIO_SLEEP
+	DebugPort_Set(1, ((~DebugPort_Get(1)) & 0x01));
 	#endif
 	
 	gMCUSleeping = FALSE;
 	gWakeTriggered = FALSE;
-		  
+
 #if 1
 	init_system();
 	while( (syscon_readPCLKEN() & (1L<<4)) == 0 ){ ; } //UART0 ready?
@@ -942,30 +938,30 @@ void MCU_Wakeup(void) {
 	init_irq();
 	
 	//実行速度測定用
-  	//#ifdef DEBUG_GPIO_SLEEP
-  	//DebugPort_Set(1, ((~DebugPort_Get(1)) & 0x01));
+	//#ifdef DEBUG_GPIO_SLEEP
+	//DebugPort_Set(1, ((~DebugPort_Get(1)) & 0x01));
 	//#endif
 #endif
 }
 
 
 SK_BOOL RF_Sleep(void){
-  	#ifdef DEBUG_GPIO_SLEEP
-  	DebugPort_Set(0, FALSE);
+	#ifdef DEBUG_GPIO_SLEEP
+	DebugPort_Set(0, FALSE);
 	#endif
 
-  	ml7404_sleep();
-  
+	ml7404_sleep();
+
 	return TRUE;
 }
 
 
 void RF_Wakeup(void){
-  	#ifdef DEBUG_GPIO_SLEEP
-  	DebugPort_Set(0, TRUE);
+	#ifdef DEBUG_GPIO_SLEEP
+	DebugPort_Set(0, TRUE);
 	#endif
-  
-  	ml7404_wakeup();
+
+	ml7404_wakeup();
 }
 
 
@@ -974,7 +970,7 @@ static SK_UB gDbgPort1 = 0;
 static SK_UB gDbgPort2 = 0;
 
 void DebugPort_Set(SK_UB num, SK_BOOL flag){
-  	if( flag == TRUE ){
+	if( flag == TRUE ){
 		if( num == 0 ){
 			UX_GPIO0->GPIOn_SWPORTA_DR |= (0x00000001 << 0); //GPIOA[0]
 			gDbgPort1 = 1;
@@ -983,14 +979,14 @@ void DebugPort_Set(SK_UB num, SK_BOOL flag){
 			gDbgPort2 = 1;
 		}
 	} else {
-	  	if( num == 0 ){
+		if( num == 0 ){
 			UX_GPIO0->GPIOn_SWPORTA_DR &= ~(0x00000001 << 0); //GPIOA[0]
 			gDbgPort1 = 0;
 		} else {
 			UX_GPIO0->GPIOn_SWPORTA_DR &= ~(0x00000001 << 1); //GPIOA[1]
 			gDbgPort2 = 0;
 		}
-	}	
+	}
 }
 
 

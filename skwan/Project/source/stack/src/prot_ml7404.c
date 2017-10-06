@@ -60,8 +60,8 @@
 //   Global PIBs
 // -------------------------------------------------
 SK_UB			gnPHY_LowerLayer;
-SK_UB 			gnPHY_UpperLayer;
-SK_UB  			gnPHY_CurrentChannel;
+SK_UB			gnPHY_UpperLayer;
+SK_UB			nPHY_CurrentChannel;
 SK_UB			gnPHY_CCAThreshold;
 SK_UB			gnPHY_CurrentTRX;
 
@@ -97,8 +97,8 @@ static volatile SK_UB gnPHY_CCACompleted;
 
 
 //ML7414 DSSSS consts
-#define DSSS_PSDU_LEN 	32
-#define DSSS_CRC_LEN 	2
+#define DSSS_PSDU_LEN	32
+#define DSSS_CRC_LEN	2
 #define FIFO_TH 		(DSSS_PSDU_LEN - DSSS_CRC_LEN)
 static SK_UB tx_pad[32];
 static SK_UB rx_fifo[64];
@@ -117,16 +117,16 @@ static void UpdateSendLimit(void);
 void ResetTxTimeContext(void);
 
 //送信制限時間中=TRUE
-SK_BOOL 	gUnderSendLimit;
+SK_BOOL		gUnderSendLimit;
 
 //1パケットの送信開始のタイムスタンプ
-SK_UW  		gTxTimeStart;
+SK_UW		gTxTimeStart;
 
 //送信総和時間(ms)
-SK_UW  		gTotalTxTime;
+SK_UW		gTotalTxTime;
 
 //送信総和時間の積算開始のタイムスタンプ
-SK_UW  		gTotalTxTimeStart;
+SK_UW		gTotalTxTimeStart;
 
 //1時間経過チェックの頻度調整
 SK_UW		gUpdateCheckInterval;
@@ -135,11 +135,11 @@ SK_UW		gUpdateCheckInterval;
 // -------------------------------------------------
 //   State machines
 // -------------------------------------------------
-SK_STATESTART(PHY);	
-SK_STATESTART(CCA);	
+SK_STATESTART(PHY);
+SK_STATESTART(CCA);
 
 typedef enum {
-	eIdle,	
+	eIdle,
 	eCCA, 
 	eWaitTxComp,
 	eCCABusy, 
@@ -183,7 +183,7 @@ void SK_PHY_Init(void) {
 	gnPHY_CurrentChannel 	= 24;
 	gnPHY_CurrentTRX		= SK_PHY_RX_ON;
 
-	gnPHY_TestMode 			= 0;
+	gnPHY_TestMode			= 0;
 	
 	gTxTotalLen = 0;
 	
