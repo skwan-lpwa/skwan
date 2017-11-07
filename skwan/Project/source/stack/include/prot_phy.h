@@ -109,6 +109,7 @@ void SK_PHY_Init(void);
 void SK_PHY_Task(void);
 void SK_PHY_Interrupt(void);
 SK_BOOL SK_PHY_ChangeChannel(SK_UB nChannel);
+void SK_PHY_SetCCAThreshold(SK_UB val);
 SK_UB SK_PHY_ReadRSSIValue(void);
 void SK_PHY_Sleep(void);
 void SK_PHY_Wakeup(void);
@@ -125,6 +126,7 @@ SK_UB SK_PHY_GetUpperLayer(void);
 extern SK_UB			gnPHY_LowerLayer;
 extern SK_UB 			gnPHY_UpperLayer;
 extern SK_UB  			gnPHY_CurrentChannel;
+extern SK_UB			gnPHY_CCAThreshold;
 extern SK_UB			gnPHY_CurrentTRX;
 
 //Stack dependent

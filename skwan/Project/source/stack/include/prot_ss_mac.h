@@ -33,6 +33,7 @@ extern "C" {
 #define SS_PHY_15_4G					(1)
 #define SS_PHY_15_4K					(2)
 #define SS_PHY_UNB_TYPE1				(3)
+#define SS_PHY_SCANNER					(250)
 
 //Time slot config
 //system tick interval (in msec)
@@ -52,26 +53,33 @@ extern "C" {
 #define SS_SLOT_DURATION				(SS_UNITS_PER_SLOT * SS_UNIT_DURATION) 
 
 //Header field length
-#define SS_PREAMBLE_LEN					(5UL)
-#define SS_SYNC_LEN						(2UL)
-
 #if (BASE_PHY_TYPE == SS_PHY_15_4G) //15.4g
-	#define SS_MHR_LEN					(2UL) //length extension
+	#define SS_PREAMBLE_LEN				(15UL)
+	#define SS_MHR_LEN					(2UL) //length extention
+	#define SS_LOWER_LAYER_OVERHEAD		(2UL) //15.4g PHY Hdr
 #else
+	#define SS_PREAMBLE_LEN				(5UL)
 	#define SS_MHR_LEN					(1UL)
+	#define SS_LOWER_LAYER_OVERHEAD		(0UL)
 #endif
 
+#define SS_SYNC_LEN						(2UL)
 #define SS_UPFCTRL_LEN					(2UL)
 #define SS_SEQ_NO_LEN					(1UL)
 #define SS_FRAME_CNT_LEN				(3UL)
 #define SS_PAYLOAD_LEN					(DEF_PAYLOAD_LEN)
 #define SS_MIC_LEN						(4UL)
 #define SS_CRC_LEN						(2UL)
-#define SS_LOWER_LAYER_OVERHEAD			(0UL) 
-#define SS_MAX_FRAME_LEN				(SS_MHR_LEN + SS_UPFCTRL_LEN + SS_SEQ_NO_LEN + SS_FRAME_CNT_LEN + SS_PAYLOAD_LEN + SS_MIC_LEN + SS_CRC_LEN)
 
+#define SS_MAX_FRAME_LEN				(SS_MHR_LEN + SS_UPFCTRL_LEN + SS_SEQ_NO_LEN + SS_FRAME_CNT_LEN + SS_PAYLOAD_LEN + SS_MIC_LEN + SS_CRC_LEN)
 #define SS_SLOT_HASHKEY_LEN				(4)
+
+#ifdef USE_STATION_DB
+#define SS_MAX_SHARED_DEVICES			(2)
+#else
 #define SS_MAX_SHARED_DEVICES			(1)
+#endif
+
 #define SS_MAX_NIC_NUM					(4)
 #define SS_SYNC_LOSS_THRESHOLD			(3)
 #define SS_MAX_DOWN_SLOT_NUM			(140)
@@ -138,7 +146,7 @@ extern "C" {
 //MAC Cmd length
 #define SS_JOIN_CMD_LEN					(8)
 #if (BASE_PHY_TYPE == SS_PHY_15_4K)
-	#define SS_JOIN_RES_CMD_LEN			(18)
+	#define SS_JOIN_RES_CMD_LEN			(19)
 #else
 	#define SS_JOIN_RES_CMD_LEN			(28)
 #endif
@@ -148,6 +156,7 @@ extern "C" {
 #define SS_STAT_DEVICE_FULL				(1)
 #define SS_STAT_JOIN_CONFLICT			(2)
 #define SS_STAT_INDIRECT_OVERFLOW		(3)
+#define SS_STAT_NO_RES_FROM_STATION		(4)
 
 //Device type
 #define SS_TYPE_STATION					0
@@ -255,7 +264,9 @@ typedef union {
 	} 				Field;
 } SS_NIC_CONFIG;
 
+#if (BASE_PHY_TYPE == SS_PHY_15_4K)
 #pragma pack(1)
+#endif
 typedef struct {
 	SK_UH m_SlotNum;
 	//1 slotに何デバイス共有するか
@@ -264,7 +275,9 @@ typedef struct {
 	SK_UW m_FrameCounter[ SS_MAX_SHARED_DEVICES ];
 	SK_UW m_OutgoingFrameCounter[ SS_MAX_SHARED_DEVICES ];
 } SS_SLOT_ADDR_DB_ITEM;
+#if (BASE_PHY_TYPE == SS_PHY_15_4K)
 #pragma pack()
+#endif
 
 typedef struct {
 	SK_UH	m_TickSlotCount;
@@ -420,6 +433,57 @@ typedef struct {
 } SS_CCMSTAR_NONCE;
 
 
+// *************************************************
+//
+//   For External DB Mode
+//
+// *************************************************
+// -------------------------------------------------
+//   REGISTER-DEVICE.request/response
+// -------------------------------------------------
+typedef struct {
+    SK_ADDRESS		m_Address;
+    SK_UH			m_SrcSlot;
+} SS_REGISTER_DEVICE_REQUEST;
+
+
+typedef struct {
+	SK_UH		m_Slot;
+	SK_UB		m_InSlotIdx;
+	SK_UB		m_Key[SS_AES_KEY_LEN];
+} SS_REGISTER_DEVICE_RESPONSE;
+
+
+// -------------------------------------------------
+//   DEVICE-DB.request/response
+// -------------------------------------------------
+typedef struct {
+	SK_UH			m_Slot;
+	SK_UB			m_InSlotIdx;
+	SK_ADDRESS		m_Address;
+} SS_DEVICE_DB_REQUEST;
+
+
+typedef struct {
+	SK_UH 			m_Slot;
+	SK_UB 			m_InSlotIdx;
+	SK_UB 			m_Key[SS_AES_KEY_LEN];
+	SK_UW 			m_FrameCounter;
+	SK_UW 			m_OutgoingFrameCounter;
+	SK_ADDRESS		m_Address;
+} SS_DEVICE_DB_RESPONSE;
+
+
+// -------------------------------------------------
+//   FRMCNT-UPDATE.request
+// -------------------------------------------------
+typedef struct {
+	SK_ADDRESS		m_Address;
+	SK_UW			m_IncomingFrameCounter;
+	SK_UW			m_OutgoingFrameCounter;
+} SS_FRMCNT_UPDATE_REQUEST;
+
+
 // -------------------------------------------------
 //   Direct table access
 // -------------------------------------------------
@@ -491,6 +555,7 @@ SK_UB* SSMac_GetPSK(void);
 SK_BOOL SSMac_SetPSK(SK_UB* key, SK_UB key_len);
 SK_BOOL SSMac_SetKey(SK_UB* key, SK_UB key_len);
 const char* SSMac_GetVerStr(void);
+const char* SSMac_FuncTypeStr(void);
 SK_UH SSMac_GetSlotNum(void);
 SK_BOOL SSMac_SetSlotNum(SK_UH slot);
 SK_BOOL SSMac_SetHoppingTable(SK_UB table);
@@ -520,6 +585,7 @@ void SSMac_InitPendingBuf(SS_PENDING_INFO buf[], SK_UH size);
 //Slot-Addr DB management
 SK_BOOL SSMac_DirectJoin(SK_ADDRESS* addr,SK_UH slot, SK_UB idx);
 SK_BOOL SSMac_AutoJoin(SK_ADDRESS* addr);
+SK_BOOL SSMac_RemoveDev(SK_ADDRESS* addr);
 
 //Device DB management
 void SSMac_InitDevInfo(SS_DEV_INFO db[], SK_UH size);

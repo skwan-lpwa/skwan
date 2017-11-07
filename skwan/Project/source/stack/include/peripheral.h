@@ -45,6 +45,8 @@ char get_char_from_spi(void);
 /* GPIO interface for rf */
 void gpio_rf_chip_enable(void);
 void gpio_rf_chip_disable(void);
+void gpio_rf_regpdin_enable(void);
+void gpio_rf_regpdin_disable(void);
 void gpio_rf_spi_enable(void);
 void gpio_rf_spi_disable(void);
 void gpio_test_port(SK_BOOL onoff);

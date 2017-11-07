@@ -44,6 +44,7 @@
 //#define DEBUG_SLEEP
 //#define DEBUG_MCU_SLEEP
 //#define DEBUG_FH
+#define DEBUG_GPIO
 //#define DEBUG_GPIO_TRX
 
 #define MCU_SLEEP
@@ -62,10 +63,20 @@
 // -------------------------------------------------
 //   Consts
 // -------------------------------------------------
+static const char* gsSSMac_VerStr = "1.2.0rc5";
+
 #ifdef ENDDEVICE
-static const char* gsSSMac_VerStr = "1.0.0rc4-ED";
+static const char* gsSSMac_FuncTypeStr = "ED";
 #else
-static const char* gsSSMac_VerStr = "1.0.0rc4-STA";
+	#if (BASE_PHY_TYPE == SS_PHY_SCANNER)
+	static const char* gsSSMac_FuncTypeStr = "SCANNER";	
+	#else
+		#if defined(USE_STATION_DB)
+		static const char* gsSSMac_FuncTypeStr = "EXDB";
+		#else
+		static const char* gsSSMac_FuncTypeStr = "STA";
+		#endif
+	#endif
 #endif
 
 static const SK_UB gnDefaultHashKey[ SS_SLOT_HASHKEY_LEN ] = 
@@ -195,8 +206,8 @@ static void PostCommStatInd(SK_UB status);
 static void PostJoinConf(SK_UB status, SK_UH slot, SK_UB idx);
 static void PostAckInd(SS_DOWN_FRAMECONTROL* down_fctrl, SK_UB pend_slot);
 
-static SK_UH GetUpSlotNum(SK_UB mode);
-	   SK_UH GetAllSlotNum(SK_UB mode);
+		SK_UH GetUpSlotNum(SK_UB mode);
+		SK_UH GetAllSlotNum(SK_UB mode);
 static SK_UB GetDownSlotNum(SK_UB mode);
 static SK_UB FindFreeDownSlot(void);
 void ClearAllDownSlot(void);
@@ -259,6 +270,13 @@ static void GetNonceForJoinRes(SS_CCMSTAR_NONCE* nonce, SK_ADDRESS* addr);
 static void SSMac_InitChannelTable(SK_UB table[], SK_UB size);
 static void ResetChannelTable(SK_UB ch);
 
+#ifdef USE_STATION_DB
+static SK_BOOL PostRegDevReq(SK_ADDRESS *addr, SK_UH src_slot);
+static SK_BOOL PostDevDBReq(SK_ADDRESS *addr);
+static SK_BOOL PostDevDBReqFor(SK_UH slot, SK_UB idx);
+static SK_BOOL PostFctUpdReq(SK_ADDRESS *addr, SK_UW inFrmCnt, SK_UW outFrmCnt);
+#endif
+
 
 // -------------------------------------------------
 //   Private working variables
@@ -283,7 +301,9 @@ static SK_UH gSlotPreChanged;
 //   MAC Initialize
 // -------------------------------------------------
 SK_STATESTART(SSMAC);	//init state machines
-
+#ifdef USE_STATION_DB
+SK_STATESTART(EXT_DB);
+#endif
 
 void SSMac_Init(SK_UW macadr1, SK_UW macadr2) {	
 	gnSSMac_LowerLayer = SK_LAYER_PHY;
@@ -353,6 +373,10 @@ void SSMac_Init(SK_UW macadr1, SK_UW macadr2) {
 	SSMac_InitStats();
 	
 	SK_INITSTATE(SSMAC);
+	
+	#ifdef USE_STATION_DB
+	SK_INITSTATE(EXT_DB);
+	#endif
 }
 
 
@@ -384,9 +408,17 @@ SK_UB SSMac_GetUpperLayer(void) {
 void SSMac_Task(void) {
 	static SK_UB nCmd,nResID,*pPkt,*pResPkt;
 	static SK_UB src_layer;
+	static SS_DATA_REQUEST* SdReq;
 	
 	SK_STATEADD(SSMAC,1);
 	SK_STATEADD(SSMAC,2);
+	
+	#ifdef USE_STATION_DB
+	SK_STATEADD(EXT_DB,1);
+	SK_STATEADD(EXT_DB,2);
+	SK_STATEADD(EXT_DB,3);
+	SK_STATEADD(EXT_DB,4);
+	#endif
 	
 	// -------------------------------------------------
 	//   Message processing
@@ -396,7 +428,6 @@ void SSMac_Task(void) {
 		switch(nCmd) {
 		case SS_DATA_REQUEST_CMD:{
 			static SK_UB pdconf_result;
-			static SS_DATA_REQUEST* SdReq;
 			
 			#ifdef DEBUG_DATA
 			SK_print("SS_DATA_REQUEST_CMD:");
@@ -462,7 +493,6 @@ void SSMac_Task(void) {
 			static SK_UH numslot;
 			static SK_UH current;
 			static SK_UB downslot;
-			static SS_DATA_REQUEST* SdReq;
 			SK_BOOL ans;
 			
 			SdReq = (SS_DATA_REQUEST *)pPkt;
@@ -478,6 +508,51 @@ void SSMac_Task(void) {
 			if( SSMac_GetDeviceType() == SS_TYPE_IDLING ){
 				break;	
 			}
+			
+			#ifdef USE_STATION_DB
+			#ifdef DEBUG_GPIO
+			DebugPort_Set( 1, ((~DebugPort_Get(1)) & 0x01));
+			#endif
+			
+			SSMac_InitDB(gaSSMac_SlotAddr_DB, SS_DB_SIZE);
+			
+			ans = PostDevDBReq(&(SdReq->m_DstAddress));
+			if(ans == FALSE){
+				goto clear_down_slot;
+			} else {
+				SK_WAITFOR(100, SK_GetMessageByCmd(SK_LAYER_SS_MAC, &src_layer, SS_DEVICE_DB_RESPONSE_CMD,(SK_VP *)&pResPkt)== SK_E_OK, EXT_DB, 2);
+				if( pResPkt != NULL ){
+					SS_DEVICE_DB_RESPONSE* DevDBRes;
+					DevDBRes = (SS_DEVICE_DB_RESPONSE*)pResPkt;
+
+					//
+					ans = RegisterDevWithSlotIdx(&(SdReq->m_DstAddress), DevDBRes->m_Slot, DevDBRes->m_InSlotIdx);
+					if( ans == TRUE ){
+						SS_SLOT_ADDR_DB_ITEM* item;
+						item = FindDBItemOf(&(SdReq->m_DstAddress));
+						if( item != NULL ){
+							memcpy(item->m_Key[ DevDBRes->m_InSlotIdx ], DevDBRes->m_Key, SS_AES_KEY_LEN);
+							item->m_FrameCounter[ DevDBRes->m_InSlotIdx ] = DevDBRes->m_FrameCounter;
+							item->m_OutgoingFrameCounter[ DevDBRes->m_InSlotIdx ] = DevDBRes->m_OutgoingFrameCounter;
+						} else {
+							ans = FALSE;	
+						}
+					}
+					//
+					
+					SK_FreeMemory(pResPkt);
+					
+					if( ans == FALSE ){
+						goto clear_down_slot;
+					}
+				} else {
+					goto clear_down_slot;
+				}
+			}
+			#ifdef DEBUG_GPIO
+			DebugPort_Set( 1, ((~DebugPort_Get(1)) & 0x01));
+			#endif
+			#endif
 			
 			//Transmit data now
 			ans = SSMac_TransmitData(SdReq);
@@ -523,9 +598,12 @@ void SSMac_Task(void) {
 		}
 
 		case SK_MCPS_DATA_INDICATION_CMD:{
-			SK_MCPS_DATA_INDICATION *MdInd = (SK_MCPS_DATA_INDICATION *)pPkt;
-			SK_UB pos, offset;
-			SS_MHR phr;
+			static SK_MCPS_DATA_INDICATION *MdInd;
+			static SK_UB pos, offset;
+			static SS_MHR mhr;
+			SK_UH len_ext;
+
+			MdInd = (SK_MCPS_DATA_INDICATION *)pPkt;
 
 			//Meta Bcnモードは一切の受信は不要
 			if( SSMac_GetDeviceType() == SS_TYPE_IDLING ||
@@ -544,50 +622,55 @@ void SSMac_Task(void) {
 				break;
 			}
 
-			//at least PHR header
-			if( MdInd->m_MsduLength < 1 ){
+			//at least MHR header
+			if( MdInd->m_MsduLength < SS_MHR_LEN ){
 			  	SS_STATS(mac.recv_drop);
 				break;	
 			}
 
 			offset = 0;
-			phr.Raw[0] = MdInd->m_Msdu[offset];
-
+			mhr.Raw[0] = MdInd->m_Msdu[offset];
 			offset++;
+			
+			#if (BASE_PHY_TYPE == SS_PHY_15_4G) //15.4g
+			mhr.Raw[1] = MdInd->m_Msdu[offset];
+			offset++;			
+			#endif
 
 			//check length consistency
-			if( phr.Field.m_Length != MdInd->m_MsduLength - 1 ){
+			if( SS_GET_MHR_LEN(mhr) != MdInd->m_MsduLength - SS_MHR_LEN ){
 			  	SS_STATS(mac.recv_drop);
 				break;
 			}
-			
-			switch(phr.Field.m_Type){
+
+			switch(mhr.Field.m_Type){
 			case SS_FRAME_DATA:{
-				SS_DATA_INDICATION* SdInd;
-				SK_ADDRESS* src_addr = NULL;
-				SS_PENDING_INFO* PendInf;
-				SS_UP_FRAMECONTROL up_fctrl;
-				SS_DOWN_FRAMECONTROL down_fctrl;
-				SK_UB recv_seq_no;
-				SK_UW recv_frame_cnt;
-				SK_UB drift, pend_slot;
-				SK_UB* ss_msdu;
-				SK_UH ss_msdu_len;
+				static SS_DATA_INDICATION* SdInd;
+				static SK_ADDRESS* src_addr = NULL;
+				static SS_PENDING_INFO* PendInf;
+				static SS_UP_FRAMECONTROL up_fctrl;
+				static SS_DOWN_FRAMECONTROL down_fctrl;
+				static SK_UB recv_seq_no;
+				static SK_UW recv_frame_cnt;
+				static SK_UB drift, pend_slot;
+				static SK_UB* ss_msdu;
+				static SK_UH ss_msdu_len;
+				static SK_BOOL ans;
 
 				pos = SSMac_AnalyzeDataHdr(	MdInd->m_Msdu + offset,
-											(SK_UB)phr.Field.m_Length,
+											(SK_UB)SS_GET_MHR_LEN(mhr),
 											&up_fctrl, 
 											&recv_seq_no,
 											&recv_frame_cnt);
 
 				//ヘッダ期待値より受信データが少ないので破棄
-				if( (pos == 0) || (phr.Field.m_Length < pos) ) {
+				if( (pos == 0) || (SS_GET_MHR_LEN(mhr) < pos) ) {
 				  	SS_STATS(mac.recv_drop);
 					break;	
 				}
 
-				//phr.Field.m_Lengthが示すペイロード長が大きすぎる
-				if( (SS_PAYLOAD_LEN + SS_MIC_LEN) < (phr.Field.m_Length - pos) ) {
+				//mhr.Field.m_Lengthが示すペイロード長が大きすぎる
+				if( (SS_PAYLOAD_LEN + SS_MIC_LEN) < (SS_GET_MHR_LEN(mhr) - pos) ) {
 				  	SS_STATS(mac.recv_drop);
 					break;	
 				}
@@ -700,15 +783,15 @@ void SSMac_Task(void) {
 						break;	
 					}
 					
-					SdInd->m_MsduLength = phr.Field.m_Length - pos - (SK_UB)SS_MIC_LEN;
+					SdInd->m_MsduLength = (SK_UB)SS_GET_MHR_LEN(mhr) - pos - (SK_UB)SS_MIC_LEN;
 					//overwrite encrypted data to decrypted data for subsequent mac cmd analyze
 					memcpy(MdInd->m_Msdu + offset + pos, SdInd->m_Msdu, SdInd->m_MsduLength);
 				} else {
-					SdInd->m_MsduLength = phr.Field.m_Length - pos; //最大でもSS_PAYLOAD_LEN + MIC_LEN
+					SdInd->m_MsduLength = (SK_UB)SS_GET_MHR_LEN(mhr) - pos; //最大でもSS_PAYLOAD_LEN + MIC_LEN
 					memcpy(SdInd->m_Msdu, MdInd->m_Msdu + offset + pos, SdInd->m_MsduLength);
 				}
 				
-				ss_msdu = MdInd->m_Msdu + offset + pos; //offset = PHR, pos = up fctrl and seq no
+				ss_msdu = MdInd->m_Msdu + offset + pos; //offset = mhr, pos = up fctrl and seq no
 				ss_msdu_len = SdInd->m_MsduLength; //note: ss_msdu_len can be 0
 
 				if (SK_PostMessage(gnSSMac_UpperLayer, SK_LAYER_SS_MAC, SS_DATA_INDICATION_CMD,(SK_VP)SdInd) != SK_E_OK){
@@ -751,22 +834,24 @@ void SSMac_Task(void) {
 				
 				// --Join cmd
 				case SS_SELECTOR_JOIN_CMD:{
-					SK_UB cmd_offset = 0;
+					SK_UB join_cmd_offset;
 					SK_UB res_idx;
-					SK_UB join_status = SS_STAT_JOIN_OK; //success
-					SK_UH src_slot;
+					static SK_UB join_status = SS_STAT_JOIN_OK; //success
+					static SK_UH join_src_slot;
 					SK_UH reg_slot; //join後の最終確定スロット
 					static SK_ADDRESS join_src;
 					SK_BOOL reg_ans;
 					SS_SLOT_ADDR_DB_ITEM* item;
-					SS_DATA_REQUEST* SdReq;
+					#ifdef USE_STATION_DB
+					static SK_UB join_res_key[SS_AES_KEY_LEN];
+					#endif
 					
 					if( ss_msdu_len < SS_JOIN_CMD_LEN ){
 						break;
 					}
 
-					src_slot = (SK_UH)(up_fctrl.Field.m_SlotH) << 8;
-					src_slot |= (SK_UH)(up_fctrl.Field.m_SlotL & 0x00FF);
+					join_src_slot = (SK_UH)(up_fctrl.Field.m_SlotH) << 8;
+					join_src_slot |= (SK_UH)(up_fctrl.Field.m_SlotL & 0x00FF);
 					
 					SSMac_GetExtAddress(&join_src, ss_msdu);
 					
@@ -780,28 +865,65 @@ void SSMac_Task(void) {
 					//スロットDBにデバイスを登録
 					//すでにスロットが別デバイスで埋まっている時は
 					//代替スロットをアサインして応答する
-					reg_ans = AutoRegisterDevSlot(&join_src, src_slot, &reg_slot, &res_idx);
+					#ifdef USE_STATION_DB
+					SSMac_InitDB(gaSSMac_SlotAddr_DB, SS_DB_SIZE);
+
+					reg_ans = PostRegDevReq(&join_src, join_src_slot);
+					if(reg_ans == FALSE){
+						join_status = SS_STAT_DEVICE_FULL;
+					} else {
+						//note:100だとホスト側で処理が追いつかずタイムアウトする場合がある
+						//SK_WAITFOR(100, SK_GetMessageByCmd(SK_LAYER_SS_MAC, &src_layer, SS_REGISTER_DEVICE_RESPONSE_CMD,(SK_VP *)&pResPkt)== SK_E_OK, EXT_DB, 1);
+						SK_WAITFOR(200, SK_GetMessageByCmd(SK_LAYER_SS_MAC, &src_layer, SS_REGISTER_DEVICE_RESPONSE_CMD,(SK_VP *)&pResPkt)== SK_E_OK, EXT_DB, 1);
+
+						if( pResPkt != NULL ){
+							SS_REGISTER_DEVICE_RESPONSE* RegDevRes;
+							RegDevRes = (SS_REGISTER_DEVICE_RESPONSE*)pResPkt;
+
+							reg_slot = RegDevRes->m_Slot;
+							res_idx = RegDevRes->m_InSlotIdx;
+							memcpy(join_res_key, RegDevRes->m_Key, SS_AES_KEY_LEN);
+							
+							if( reg_slot == 0xFFFF ){
+								join_status = SS_STAT_DEVICE_FULL;
+								reg_ans = FALSE;
+							} else {
+								reg_ans = TRUE;
+							}
+							
+							SK_FreeMemory(pResPkt);
+						} else {
+							join_status = SS_STAT_NO_RES_FROM_STATION;
+							reg_ans = FALSE;
+						}
+					}
+					
+					#else
+					reg_ans = AutoRegisterDevSlot(&join_src, join_src_slot, &reg_slot, &res_idx);
 					if( reg_ans == FALSE ){
 						join_status = SS_STAT_DEVICE_FULL;
-						reg_slot = 0xFFFF;
 					}
+					#endif
 					
-					//size of down_fctrl.Field.m_InSlotIdx is 1 bit at this moment,
-					//so idx must be 0 or 1
-					if( res_idx != 0xFF ){
-						down_fctrl.Field.m_InSlotIdx = res_idx;
+					if( reg_ans == FALSE ){ 
+						reg_slot = 0xFFFF;
+						res_idx = 0xFF;
+						
+						//対応するDEV_DBがないと下りはどのみち送れないため応答の送信自体をしない
+						PostJoinConf(join_status, reg_slot, res_idx);
+						break;
 					} else {
-						down_fctrl.Field.m_InSlotIdx = 0;
-						join_status = SS_STAT_DEVICE_FULL;
-						reg_slot = 0xFFFF;
+						//size of down_fctrl.Field.m_InSlotIdx is 1 bit at this moment,
+						//so idx must be 0 or 1
+						down_fctrl.Field.m_InSlotIdx = res_idx;
 					}
-					
+
 					src_addr = &join_src;
 					
 					//
 					// now joinning deivce is success
 					//
-					cmd_offset = 0;
+					join_cmd_offset = 0;
 					
 					if (SK_AllocDataMemory((SK_VP *)&SdReq) != SK_E_OK) { 
 						break; 
@@ -815,36 +937,41 @@ void SSMac_Task(void) {
 					#if(BASE_PHY_TYPE == SS_PHY_15_4K)
 					
 					#else
-					SdReq->m_Msdu[cmd_offset] = join_status;
-					cmd_offset++;
-					
-					MAC_SET_LONG(SdReq->m_Msdu + cmd_offset, SdReq->m_DstAddress.Body.Extended.m_Long[0]);
-					cmd_offset+=4;
-					MAC_SET_LONG(SdReq->m_Msdu + cmd_offset, SdReq->m_DstAddress.Body.Extended.m_Long[1]);
-					cmd_offset+=4;
+					SdReq->m_Msdu[join_cmd_offset] = join_status;
+					join_cmd_offset++;
+
+					MAC_SET_LONG(SdReq->m_Msdu + join_cmd_offset, SdReq->m_DstAddress.Body.Extended.m_Long[0]);
+					join_cmd_offset+=4;
+					MAC_SET_LONG(SdReq->m_Msdu + join_cmd_offset, SdReq->m_DstAddress.Body.Extended.m_Long[1]);
+					join_cmd_offset+=4;
 					#endif
 					
-					item = FindDBItemOf(&SdReq->m_DstAddress);
-					if( item != NULL ){
-						memcpy(SdReq->m_Msdu + cmd_offset, item->m_Key[res_idx], SS_AES_KEY_LEN);
-						cmd_offset+=SS_AES_KEY_LEN;
-					} else {
-						//there must be an corresponding DB item for the dst addr
-						//item == NULL is abnormal case...abort
-						SK_FreeMemory(SdReq);
-						break;
-					}
+					#ifdef USE_STATION_DB
+	 					memcpy(SdReq->m_Msdu + join_cmd_offset, join_res_key, SS_AES_KEY_LEN);
+						join_cmd_offset+=SS_AES_KEY_LEN;	
+					#else 
+						item = FindDBItemOf(&SdReq->m_DstAddress);
+						if( item != NULL && res_idx != 0xFF ){
+							memcpy(SdReq->m_Msdu + join_cmd_offset, item->m_Key[res_idx], SS_AES_KEY_LEN);
+							join_cmd_offset+=SS_AES_KEY_LEN;
+						} else {
+							//abnormal case...
+							SK_FreeMemory(SdReq);
+							break;
+						}
+					#endif
 					
-					MAC_SET_WORD(SdReq->m_Msdu + cmd_offset, reg_slot);
-					cmd_offset+=2;
+					MAC_SET_WORD(SdReq->m_Msdu + join_cmd_offset, reg_slot);
+					join_cmd_offset+=2;
 					
 					#if(BASE_PHY_TYPE == SS_PHY_15_4K)
-					
+					SdReq->m_Msdu[join_cmd_offset] = res_idx;
+					join_cmd_offset++;					
 					#else
-					SdReq->m_Msdu[cmd_offset] = res_idx;
-					cmd_offset++;
+					SdReq->m_Msdu[join_cmd_offset] = res_idx;
+					join_cmd_offset++;
 					#endif
-					
+
 					SdReq->m_TxOptions = 0;
 					SdReq->m_TxOptions |= SS_TXOPTIONS_SECURITY;
 					SdReq->m_TxOptions |= SS_TXOPTIONS_INDIRECT;
@@ -875,7 +1002,7 @@ void SSMac_Task(void) {
 					#if(BASE_PHY_TYPE != SS_PHY_15_4K)
 					SK_UW lower_addr, upper_addr;
 					#endif
-					
+
 					if( ss_msdu_len < SS_JOIN_RES_CMD_LEN ){
 						break;
 					}
@@ -926,7 +1053,9 @@ void SSMac_Task(void) {
 					cmd_offset+= 2;
 
 					#if(BASE_PHY_TYPE == SS_PHY_15_4K)
-					gnSSMac_InSlotIdx = 0;
+					//gnSSMac_InSlotIdx = 0;
+					gnSSMac_InSlotIdx = ss_msdu[cmd_offset];
+					cmd_offset++;					
 					#else
 					gnSSMac_InSlotIdx = ss_msdu[cmd_offset];
 					cmd_offset++;
@@ -1047,7 +1176,7 @@ void SSMac_Task(void) {
 				}
 				
 				pos = SSMac_AnalyzeAck(	MdInd->m_Msdu + offset,
-										(SK_UB)phr.Field.m_Length,
+										(SK_UB)SS_GET_MHR_LEN(mhr),
 										&down_fctrl, 
 										&seq_no,
 										&drift,
@@ -1063,7 +1192,7 @@ void SSMac_Task(void) {
 				SK_print_hex(pend_slot, 2); SK_print("\r\n");
 				#endif
 
-				if( (pos == 0) || (phr.Field.m_Length < pos) ) {
+				if( (pos == 0) || (SS_GET_MHR_LEN(mhr) < pos) ) {
 				  	SS_STATS(mac.recv_drop);
 					break;	
 				}
@@ -1092,9 +1221,7 @@ void SSMac_Task(void) {
 				
 				SS_STATS(mac.recv_ack);
 				PostAckInd(&down_fctrl, pend_slot);
-
-				//DebugPort_Set(0, ((~DebugPort_Get(0)) & 0x01));
-
+				
 				break;
 			}
 				
@@ -1113,14 +1240,14 @@ void SSMac_Task(void) {
 				}
 				
 				pos = SSMac_AnalyzeBeacon(	MdInd->m_Msdu + offset,
-											(SK_UB)phr.Field.m_Length,
+											(SK_UB)SS_GET_MHR_LEN(mhr),
 											&bcn_fctrl, 
 											&bsn, 
 											&slot_cfg, 
 											&sta_id, 
 											&rand_s);
 
-				if( (pos == 0) || (phr.Field.m_Length < pos) ) {
+				if( (pos == 0) || (SS_GET_MHR_LEN(mhr) < pos) ) {
 				  	SS_STATS(mac.recv_drop);
 					break;
 				}
@@ -1179,11 +1306,11 @@ void SSMac_Task(void) {
 				}
 				
 				pos = SSMac_AnalyzeMetaBeacon(	MdInd->m_Msdu + offset,
-											(SK_UB)phr.Field.m_Length,
+											(SK_UB)SS_GET_MHR_LEN(mhr),
 											&sta_id, 
 											gaSSMac_DevInfo);
 
-				if( (pos == 0) || (phr.Field.m_Length < pos) ) {
+				if( (pos == 0) || (SS_GET_MHR_LEN(mhr) < pos) ) {
 				  	SS_STATS(mac.recv_drop);
 					break;	
 				}
@@ -1195,7 +1322,7 @@ void SSMac_Task(void) {
 				
 			default:
 				break;
-			} // end of switch(phr.Field.m_Type){
+			} // end of switch(mhr.Field.m_Type){
 			
 			break; //end of case SK_MCPS_DATA_INDICATION_CMD
 		}
@@ -1345,10 +1472,12 @@ void SSMac_Task(void) {
 		} 
 		
  		case SS_SLOT_PRE_CHANGE_INDICATION_CMD:{
-			SS_SLOT_PRE_CHANGE_INDICATION* SlotInd = (SS_SLOT_PRE_CHANGE_INDICATION *)pPkt;
-			SK_UH next_slot;
-			SK_BOOL need_wake = FALSE;
+			SS_SLOT_PRE_CHANGE_INDICATION* SlotInd;
+			static SK_UH next_slot;
+			SK_BOOL need_wake;
 			
+			SlotInd = (SS_SLOT_PRE_CHANGE_INDICATION *)pPkt;
+
 			/*
 			#ifdef DEBUG_SLOT
 			SK_print("SLOT-PRE-CHANGE:");
@@ -1357,6 +1486,82 @@ void SSMac_Task(void) {
 			#endif
 			*/
 			next_slot = SlotInd->m_SlotNum + 1;
+			
+			#ifdef USE_STATION_DB
+			if( SSMac_GetDeviceType() == SS_TYPE_STATION ){
+				SK_BOOL ans;
+
+				#ifdef DEBUG_GPIO
+				DebugPort_Set( 1, ((~DebugPort_Get(1)) & 0x01));
+				#endif
+			
+				SSMac_InitDB(gaSSMac_SlotAddr_DB, SS_DB_SIZE);
+				
+				ans = PostDevDBReqFor(next_slot, 0);
+				if(ans == FALSE) goto post_end;
+				
+				SK_WAITFOR(50, SK_GetMessageByCmd(SK_LAYER_SS_MAC, &src_layer, SS_DEVICE_DB_RESPONSE_CMD,(SK_VP *)&pResPkt)== SK_E_OK, EXT_DB, 3);
+				if( pResPkt != NULL ){
+					SS_DEVICE_DB_RESPONSE* DevDBRes;
+					SS_SLOT_ADDR_DB_ITEM* item;
+					
+					DevDBRes = (SS_DEVICE_DB_RESPONSE*)pResPkt;
+
+					if( DevDBRes->m_InSlotIdx == 0xFF ) goto devres_end;
+					
+					//
+					ans = RegisterDevWithSlotIdx(&(DevDBRes->m_Address), DevDBRes->m_Slot, DevDBRes->m_InSlotIdx);
+					if( ans == FALSE ) goto devres_end;
+
+					item = FindDBItemOf(&(DevDBRes->m_Address));
+					if( item == NULL )  goto devres_end;
+					
+					memcpy(item->m_Key[ DevDBRes->m_InSlotIdx ], DevDBRes->m_Key, SS_AES_KEY_LEN);
+					item->m_FrameCounter[ DevDBRes->m_InSlotIdx ] =  DevDBRes->m_FrameCounter;
+					item->m_OutgoingFrameCounter[ DevDBRes->m_InSlotIdx ] =  DevDBRes->m_OutgoingFrameCounter;
+					//
+					
+					devres_end:
+					SK_FreeMemory(pResPkt);
+				}
+				
+				ans = PostDevDBReqFor(next_slot, 1);
+				if(ans == FALSE) goto post_end;
+				
+				SK_WAITFOR(50, SK_GetMessageByCmd(SK_LAYER_SS_MAC, &src_layer, SS_DEVICE_DB_RESPONSE_CMD,(SK_VP *)&pResPkt)== SK_E_OK, EXT_DB, 4);
+				if( pResPkt != NULL ){
+					SS_DEVICE_DB_RESPONSE* DevDBRes;
+					SS_SLOT_ADDR_DB_ITEM* item;
+					
+					DevDBRes = (SS_DEVICE_DB_RESPONSE*)pResPkt;
+
+					if( DevDBRes->m_InSlotIdx == 0xFF ) goto devres_end2;
+					
+					//
+					ans = RegisterDevWithSlotIdx(&(DevDBRes->m_Address), DevDBRes->m_Slot, DevDBRes->m_InSlotIdx);
+					if( ans == FALSE ) goto devres_end2;
+
+					item = FindDBItemOf(&(DevDBRes->m_Address));
+					if( item == NULL )  goto devres_end2;
+					
+					memcpy(item->m_Key[ DevDBRes->m_InSlotIdx ], DevDBRes->m_Key, SS_AES_KEY_LEN);
+					item->m_FrameCounter[ DevDBRes->m_InSlotIdx ] =  DevDBRes->m_FrameCounter;
+					item->m_OutgoingFrameCounter[ DevDBRes->m_InSlotIdx ] =  DevDBRes->m_OutgoingFrameCounter;
+					//
+					
+					devres_end2:
+					SK_FreeMemory(pResPkt);
+				}
+			}
+			
+			post_end:
+			#ifdef DEBUG_GPIO
+			DebugPort_Set( 1, ((~DebugPort_Get(1)) & 0x01));
+			#endif
+			#endif
+			
+			need_wake = FALSE;
+
 			if( NeedWakeup(next_slot) == TRUE ){
 				#ifdef DEBUG_SLEEP
 				SK_print("RF Wake\r\n");
@@ -1402,6 +1607,9 @@ void SSMac_Task(void) {
 	// -------------------------------------------------
 
 	SK_STATEEND(SSMAC);
+	#ifdef USE_STATION_DB
+	SK_STATEEND(EXT_DB);
+	#endif
 	
 	CheckSyncLoss();
 	
@@ -2268,7 +2476,7 @@ void SKMac_TransmitAck(SS_DOWN_FRAMECONTROL* fctrl, SK_UB seq, SK_UB drift, SK_U
 SK_UB SSMac_EncodeBeacon(SK_UB* buf, SK_UB len){
 	SS_SLOT_CONFIG slot_cfg;
 	SS_BCN_FRAMECONTROL bcn_fctrl;
-	SS_MHR phr;
+	SS_MHR mhr;
 	SK_UB offset = 0;
 	SK_UB total_len = SS_BEACON_LEN;
 	
@@ -2276,13 +2484,17 @@ SK_UB SSMac_EncodeBeacon(SK_UB* buf, SK_UB len){
 		return 0;	
 	}
 	
-	//PHR
-	phr.Raw[0] = 0;
-	phr.Field.m_Type = SS_FRAME_BEACON;
-	phr.Field.m_Length = total_len;
-	buf[offset] = phr.Raw[0];
-	offset++;
+	//mhr
+	mhr.Raw[0] = 0;
+	mhr.Field.m_Type = SS_FRAME_BEACON;
 	
+	//mhr.Field.m_Length = total_len;
+	SS_SET_MHR_LEN(mhr, total_len);
+
+	//buf[offset] = mhr.Raw[0];
+	//offset++;
+	SS_ENCODE_MHR(mhr, buf, offset);
+
 	//Beacon framecontrol
 	bcn_fctrl.Raw[0] = 0;
 	bcn_fctrl.Field.m_Version = SS_PROTOCOL_VERSION;
@@ -2330,7 +2542,7 @@ SK_UB SSMac_EncodeBeacon(SK_UB* buf, SK_UB len){
 SK_UB SSMac_EncodeMetaBeacon(SK_UB* buf, SK_UB len){
 	SK_UB i;
 	SS_NIC_CONFIG nic;
-	SS_MHR phr;
+	SS_MHR mhr;
 	SK_UB offset = 0;
 	SK_UB total_len = SS_META_BEACON_LEN;
 	
@@ -2338,12 +2550,16 @@ SK_UB SSMac_EncodeMetaBeacon(SK_UB* buf, SK_UB len){
 		return 0;	
 	}
 	
-	//PHR
-	phr.Raw[0] = 0;
-	phr.Field.m_Type = SS_FRAME_META_BEACON;
-	phr.Field.m_Length = total_len;
-	buf[offset] = phr.Raw[0];
-	offset++;
+	//mhr
+	mhr.Raw[0] = 0;
+	mhr.Field.m_Type = SS_FRAME_META_BEACON;
+	
+	//mhr.Field.m_Length = total_len;
+	SS_SET_MHR_LEN(mhr, total_len);
+
+	//buf[offset] = mhr.Raw[0];
+	//offset++;
+	SS_ENCODE_MHR(mhr, buf, offset);
 	
 	//Station ID
 	MAC_SET_LONG(buf + offset, gnSSMac_StationID);
@@ -2374,7 +2590,7 @@ SK_UB SSMac_EncodeMetaBeacon(SK_UB* buf, SK_UB len){
 // -------------------------------------------------
 SK_UB SSMac_EncodeDataReq(SS_DATA_REQUEST* SdReq, SK_UB* buf, SK_UB len){
 	SS_UP_FRAMECONTROL up_fctrl;
-	SS_MHR phr;
+	SS_MHR mhr;
 	SK_UB offset = 0;
 	SK_UW frm_cnt;
 	SK_UB total_len = SdReq->m_MsduLength + (SK_UB)SS_UPFCTRL_LEN + (SK_UB)SS_SEQ_NO_LEN + (SK_UB)SS_FRAME_CNT_LEN; 
@@ -2386,12 +2602,16 @@ SK_UB SSMac_EncodeDataReq(SS_DATA_REQUEST* SdReq, SK_UB* buf, SK_UB len){
 	if( len < (total_len + SS_MHR_LEN) ) return 0;
 	if( SS_MAX_FRAME_LEN < (total_len + SS_MHR_LEN) ) return 0;
 	
-	//PHR
-	phr.Raw[0] = 0;
-	phr.Field.m_Type = SS_FRAME_DATA;
-	phr.Field.m_Length = total_len;
-	buf[offset] = phr.Raw[0];
-	offset++;
+	//MHR
+	mhr.Raw[0] = 0;
+	mhr.Field.m_Type = SS_FRAME_DATA;
+	
+	//mhr.Field.m_Length = total_len;
+	SS_SET_MHR_LEN(mhr, total_len);
+
+	//buf[offset] = mhr.Raw[0];
+	//offset++;
+	SS_ENCODE_MHR(mhr, buf, offset);
 
 	//UP Fctrl
 	up_fctrl.Raw[0] = 0;
@@ -2492,18 +2712,22 @@ SK_UB SSMac_EncodeAck(
 	SK_UB* buf, 
 	SK_UB len)
 {
-	SS_MHR phr;
+	SS_MHR mhr;
 	SK_UB offset = 0;
 	SK_UB total_len = SS_ACK_LEN;
 	
 	if( len < (total_len + SS_MHR_LEN) ) return 0;
 	if( SS_MAX_FRAME_LEN < (total_len + SS_MHR_LEN) ) return 0;
 	
-	phr.Raw[0] = 0;
-	phr.Field.m_Type = SS_FRAME_ACK;
-	phr.Field.m_Length = total_len;
-	buf[offset] = phr.Raw[0];
-	offset++;
+	mhr.Raw[0] = 0;
+	mhr.Field.m_Type = SS_FRAME_ACK;
+	
+	//mhr.Field.m_Length = total_len;
+	SS_SET_MHR_LEN(mhr, total_len);
+
+	//buf[offset] = mhr.Raw[0];
+	//offset++;
+	SS_ENCODE_MHR(mhr, buf, offset);
 
 	buf[offset] = fctrl->Raw[0];
 	offset++;
@@ -2936,6 +3160,9 @@ SK_BOOL DecryptData(SS_DATA_INDICATION* SdInd, SK_UB offset, SK_UW frame_cnt, SK
 		if( SSMac_GetDeviceType() == SS_TYPE_STATION ){
 			if( frame_cnt < SS_MAX_FRAME_COUNTER ){
 				item->m_FrameCounter[idx] = frame_cnt + 1;
+				#ifdef USE_STATION_DB
+				PostFctUpdReq(&SdInd->m_SrcAddress, item->m_FrameCounter[idx], item->m_OutgoingFrameCounter[idx]);
+				#endif
 			}
 		} else {
 			if( frame_cnt < SS_MAX_FRAME_COUNTER ){
@@ -3702,6 +3929,101 @@ static void PostAckInd(SS_DOWN_FRAMECONTROL* down_fctrl, SK_UB pend_slot){
 }
 
 
+#ifdef USE_STATION_DB
+// -------------------------------------------------
+//   Post REGISTER-DEVICE.request 
+// UART経由でSKStationManagerにデバイス登録要求を発行する
+// REGISTER_DEVICE_RESPONSEイベントでslotとinslotidxのアサインを待つ
+// -------------------------------------------------
+static SK_BOOL PostRegDevReq(SK_ADDRESS *addr, SK_UH src_slot){
+	SS_REGISTER_DEVICE_REQUEST *RegDevReq;
+	
+	if (SK_AllocCommandMemory((SK_VP *)&RegDevReq) != SK_E_OK) return FALSE;
+	
+	SSMac_CopyAddress(&RegDevReq->m_Address, addr);
+	RegDevReq->m_SrcSlot = src_slot;
+
+	if (SK_PostMessage(gnSSMac_UpperLayer, SK_LAYER_SS_MAC, SS_REGISTER_DEVICE_REQUEST_CMD, (SK_VP)RegDevReq) != SK_E_OK) {
+		SK_FreeMemory(RegDevReq);
+		return FALSE;
+	}
+	
+	return TRUE;
+}
+
+
+// -------------------------------------------------
+//   Post DEVICE-DB.request 
+// UART経由でSKStationManagerにデバイスDB情報を要求する
+// DEVICE_DB_RESPONSEイベントでaddrに対応するSS_SLOT_ADDR_DB_ITEMエントリーが埋まる
+// -------------------------------------------------
+static SK_BOOL PostDevDBReq(SK_ADDRESS *addr){
+	SS_DEVICE_DB_REQUEST *DevDBReq;
+	
+	if (SK_AllocCommandMemory((SK_VP *)&DevDBReq) != SK_E_OK) return FALSE;
+	
+	DevDBReq->m_Slot = 0xFFFF;
+	DevDBReq->m_InSlotIdx = 0xFF;
+	SSMac_CopyAddress(&DevDBReq->m_Address, addr);
+
+	if (SK_PostMessage(gnSSMac_UpperLayer, SK_LAYER_SS_MAC, SS_DEVICE_DB_REQUEST_CMD, (SK_VP)DevDBReq) != SK_E_OK) {
+		SK_FreeMemory(DevDBReq);
+		return FALSE;
+	}
+	
+	return TRUE;
+}
+
+
+// -------------------------------------------------
+//   Post DEVICE-DB.request 
+// UART経由でSKStationManagerにデバイスDB情報を要求する
+// DEVICE_DB_RESPONSEイベントでslot-idxに対応するSS_SLOT_ADDR_DB_ITEMエントリーが埋まる
+// -------------------------------------------------
+static SK_BOOL PostDevDBReqFor(SK_UH slot, SK_UB idx){
+	SS_DEVICE_DB_REQUEST *DevDBReq;
+	
+	if( slot == 0 ) return FALSE; //bcn slot
+	//if( slot == GetUpSlotNum(gnSSMac_SlotMode) ) return FALSE;
+	if( slot > GetUpSlotNum(gnSSMac_SlotMode) ) return FALSE; //guard slotより以降は不要
+	
+	if (SK_AllocCommandMemory((SK_VP *)&DevDBReq) != SK_E_OK) return FALSE;
+
+	DevDBReq->m_Slot = slot;
+	DevDBReq->m_InSlotIdx = idx;
+	SSMac_InitAddr(&DevDBReq->m_Address);
+	
+	if (SK_PostMessage(gnSSMac_UpperLayer, SK_LAYER_SS_MAC, SS_DEVICE_DB_REQUEST_CMD, (SK_VP)DevDBReq) != SK_E_OK) {
+		SK_FreeMemory(DevDBReq);
+		return FALSE;
+	}
+	
+	return TRUE;
+}
+
+
+// -------------------------------------------------
+//   Post SS-DATA.confirm event to upper layer
+// -------------------------------------------------
+static SK_BOOL PostFctUpdReq(SK_ADDRESS *addr, SK_UW inFrmCnt, SK_UW outFrmCnt){
+	SS_FRMCNT_UPDATE_REQUEST* FctUpdReq;
+	
+	if (SK_AllocCommandMemory((SK_VP *)&FctUpdReq) != SK_E_OK) return FALSE;
+	
+	FctUpdReq->m_IncomingFrameCounter = inFrmCnt;
+	FctUpdReq->m_OutgoingFrameCounter = outFrmCnt;
+	SSMac_CopyAddress(&(FctUpdReq->m_Address), addr);
+
+	if (SK_PostMessage(gnSSMac_UpperLayer, SK_LAYER_SS_MAC, SS_FRMCNT_UPDATE_REQUEST_CMD, (SK_VP)FctUpdReq) != SK_E_OK) {
+		SK_FreeMemory(FctUpdReq);
+		return FALSE;
+	}
+	
+	return TRUE;
+}
+#endif
+
+
 // -------------------------------------------------
 //   Direct register the device of the addr with slot and idx
 // -------------------------------------------------
@@ -3927,13 +4249,64 @@ SK_BOOL RegisterDevWithSlotIdx(SK_ADDRESS* addr, SK_UH slot, SK_UB idx){
 
 
 // -------------------------------------------------
+//   Remove devivce from Device DB
+// -------------------------------------------------
+SK_BOOL SSMac_RemoveDev(SK_ADDRESS* addr){
+	SS_SLOT_ADDR_DB_ITEM* item;
+	
+	item = FindDBItemOf(addr);
+	if( item != NULL ){
+		SK_UB idx;
+		idx = GetInSlotIdxOf(addr);
+		if( idx == 0xFF ){
+			return FALSE;
+		} else if( idx >= SS_MAX_SHARED_DEVICES ){
+		  	return FALSE;
+		} else {
+			//Addrクリア
+			SSMac_InitAddr(&(item->m_Addr[idx]));
+			
+			//Keyを初期化
+			GenerateEncKey( &(item->m_Key[idx][0]), SS_AES_KEY_LEN );
+			
+			//clear frame counter
+			item->m_FrameCounter[idx] = SS_MAX_FRAME_COUNTER;
+			item->m_OutgoingFrameCounter[idx] = 0;
+			//
+			
+			//もう片方の登録情報もなければDB領域を開放
+			if( SS_MAX_SHARED_DEVICES > 1 ){
+				if( idx == 0 ){
+					if( item->m_Addr[1].Body.Extended.m_Long[0] == 0 &&
+						item->m_Addr[1].Body.Extended.m_Long[1] == 0 ){
+						item->m_SlotNum = 0xFFFF;
+					}
+				} else if( idx == 1 ){
+					if( item->m_Addr[0].Body.Extended.m_Long[0] == 0 &&
+						item->m_Addr[0].Body.Extended.m_Long[1] == 0 ){
+						item->m_SlotNum = 0xFFFF;
+					}
+				}
+			} else {
+				item->m_SlotNum = 0xFFFF;
+			}
+			 
+			return TRUE;
+		}
+	} else {
+		return FALSE;	
+	}	
+}
+
+
+// -------------------------------------------------
 //   Time slot calculation
 // *) This function is called from timer interrupt
 // -------------------------------------------------
 void SK_IncrementSlot(SK_UH tick){
 	SK_UB i;
 	
-	if( gnSSMac_DeviceType == SS_TYPE_METABEACON ){
+	if( SSMac_GetDeviceType() == SS_TYPE_METABEACON ){
 		for( i = 0; i < SS_MAX_NIC_NUM; i++ ){
 			if( gaSSMac_DevInfo[i].m_TickSlotCount == 0xFFFF ) continue;
 			
@@ -4259,6 +4632,9 @@ const char* SSMac_GetVerStr(void){
 	return gsSSMac_VerStr;	
 }
 
+const char* SSMac_FuncTypeStr(void){
+	return gsSSMac_FuncTypeStr;	
+}
 
 // -------------------------------------------------
 //   Set/Get hopping table this device  use
@@ -4494,7 +4870,14 @@ static SK_UH GetUpSlotNum(SK_UB mode){
 #endif
 
 //最終UPスロットをGAPスロットとする仕様変更につき、UP slot数を1減らす
-static SK_UH GetUpSlotNum(SK_UB mode){
+/*
+	ex. 16 slot構成の場合
+	0 ...beacon  
+	1 2 3 4 5 6 7 8 9 10 11 ...up
+	12 ...gap
+	13 14 15 ...down
+*/
+SK_UH GetUpSlotNum(SK_UB mode){
 	switch(mode){
 		case SS_SLOTMODE_16: //16 slots
 			return 11;
@@ -4554,7 +4937,7 @@ static SK_UB GetDownSlotNum(SK_UB mode){
 }
 
 
-static SK_UH CalcMySlot(SK_UB* key){
+SK_UH CalcMySlot(SK_UB* key){
 	return CalcSlotFor(key, &gnSSMac_Address, gnSSMac_StationID);
 }
 
@@ -4667,6 +5050,9 @@ static void IncSeqNumAndFrameCnt(SS_DATA_REQUEST* SdReq){
 			//keep max value			
 		} else {
 			item->m_OutgoingFrameCounter[idx]++;
+			#ifdef USE_STATION_DB
+			PostFctUpdReq(&SdReq->m_DstAddress, item->m_FrameCounter[idx], item->m_OutgoingFrameCounter[idx]);
+			#endif
 		}
 	} else {
 		if( gnSSMac_FrameCounter >= SS_MAX_FRAME_COUNTER ){

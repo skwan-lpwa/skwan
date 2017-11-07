@@ -52,7 +52,8 @@
 // -------------------------------------------------
 //#define DEBUG_CCA
 //#define DEBUG_RX
-#define DEBUG_INT
+//#define DEBUG_INT 
+//#define _DEBUG_INT
 //#define DEBUG_STATUS
 
 
@@ -61,7 +62,7 @@
 // -------------------------------------------------
 SK_UB			gnPHY_LowerLayer;
 SK_UB			gnPHY_UpperLayer;
-SK_UB			nPHY_CurrentChannel;
+SK_UB			gnPHY_CurrentChannel;
 SK_UB			gnPHY_CCAThreshold;
 SK_UB			gnPHY_CurrentTRX;
 
@@ -76,6 +77,7 @@ static void PostDataConfirm(SK_UB layer, SK_UB result);
 static SK_BOOL TransmitPacket(void);
 static void SK_PHY_ReceivePacket(void);
 static SK_BOOL SK_PHY_ExecCSMACA(void);
+static void InitTxContext(void);
 
 
 // -------------------------------------------------
@@ -88,7 +90,8 @@ static SK_UH gTxTotalLen; //送信データ総バイト数
 static SK_UH gRxTotalLen; //受信データ総バイト数
 static SK_BOOL gIsCRCError; //CRCエラー発生？
 
-static SK_BOOL gCCAResult;
+static SK_BOOL gCCAResult; //CCA success or fail
+static SK_UW gCCAGuardTime;
 
 //RF interrupt flags
 static volatile SK_UB gnPHY_TxCompleted;
@@ -114,7 +117,7 @@ static void StartTxTime(void);
 static void StopTxTime(void);
 static void CheckSendLimit(void);
 static void UpdateSendLimit(void);
-void ResetTxTimeContext(void);
+static void ResetTxTimeContext(void);
 
 //送信制限時間中=TRUE
 SK_BOOL		gUnderSendLimit;
@@ -190,6 +193,8 @@ void SK_PHY_Init(void) {
 	ResetTxTimeContext();
 
 	SSMac_Wakeup();
+	
+	SK_PHY_SetCCAThreshold(80); //@@@ this cca threshold is temporal
 
 	gnSK_Time_CCA++;
 	
@@ -262,18 +267,14 @@ SK_print("SK_PD_DATA_REQUEST_CMD\r\n");
 				gSendingData[i] = data_buf[i];
 			}
 			
-			//setup tx context
+			//Set tx data len
 			gTxTotalLen = data_len;
 
 			//move to CCA state
 			SK_SETSTATE(eCCA, CCA);
 			
-			//clear interrupt flags
-			gIsCRCError = FALSE;
-			gCCAResult = FALSE;
-			gnPHY_CCACompleted = FALSE;
-			gnPHY_TxCompleted = FALSE;
-			gnPHY_TxDataRequest = FALSE;
+			//clear interrupt and working flags for tx process
+			InitTxContext();
 
 			//wait for TX done
 			SK_WAITFOR(1000, (SK_PHY_ExecCSMACA() != 0),PHY, 2);
@@ -323,6 +324,7 @@ SK_print("SK_PD_DATA_REQUEST_CMD\r\n");
 	
 	SK_STATEEND(PHY);
 	
+	//360秒送信総和時間の計算
 	UpdateSendLimit();
 }
 
@@ -347,8 +349,10 @@ SK_BOOL SK_PHY_ExecCSMACA(void){
 		SK_print("now start to send\r\n");
 		#endif
 
-		rf_phy_reset();
+		//rf_phy_reset();
 		ml7404_start_ecca();
+		
+		gCCAGuardTime = SK_GetLongTick();
 		
 		//debug
 		//gnPHY_CCACompleted = TRUE;
@@ -384,6 +388,7 @@ SK_BOOL SK_PHY_ExecCSMACA(void){
 
 				//move to TX state
 				SK_SETSTATE(eWaitTxComp, CCA);
+				
 			} else {
 				#ifdef DEBUG_CCA
 				SK_print("cca fail\r\n");
@@ -394,8 +399,28 @@ SK_BOOL SK_PHY_ExecCSMACA(void){
 				ml7404_trx_off();
 
 				SK_SETSTATE(eCCABusy, CCA);	//CCA busy case
+			} 
+			
+		} else {
+		  
+			#ifdef DEBUG_CCA
+			SK_print_hex(ml7404_get_cca_status(), 4); SK_print(" ");
+			#endif
+				
+			//CCA開始してからガードタイム時間経過
+			//->タイムアウト
+			if( (SK_UW)(SK_GetLongTick() - gCCAGuardTime) > 50 ){
+			
+				#ifdef DEBUG_CCA
+				SK_print("cca timeout\r\n");
+				#endif				
+
+				ml7404_trx_off();
+			
+				SK_SETSTATE(eCCABusy, CCA);
 			}
-		} 
+		}
+		
 	} else if( state == eWaitTxComp ){		
 		//wait for TX complete
 		if( gnPHY_TxCompleted == TRUE ){
@@ -477,12 +502,15 @@ static void SK_PHY_ReceivePacket(void)
 	SK_MCPS_DATA_INDICATION *MdInd;
 	SS_MHR phr;
 	
+	ml7404_trx_off();
+	
 	ml7404_fifo_read_block(rx_fifo, 64);
 
 	phr.Raw[0] = rx_fifo[0];
 	
 	if( gIsCRCError == TRUE ){
 		SS_STATS(phy.recv_drop);
+		ml7404_go_rx_mode();
 	  	return;
 	}
 
@@ -491,9 +519,11 @@ static void SK_PHY_ReceivePacket(void)
 	
 		if( phr.Field.m_Length == 0 ) {
 		  	SS_STATS(phy.recv_drop);
+			ml7404_go_rx_mode();
 			return;
 		} else if( gRxTotalLen > SS_MAX_FRAME_LEN ){
 		  	SS_STATS(phy.recv_drop);
+			ml7404_go_rx_mode();
 			return;
 		}
 	} else {
@@ -543,6 +573,7 @@ static void SK_PHY_ReceivePacket(void)
 	}
 	
 	gRxTotalLen = 0;
+	ml7404_go_rx_mode();
 }
 
 
@@ -563,9 +594,12 @@ void SK_PHY_Interrupt(void) {
 	SK_print("\r\n");
 	#endif
 
+	if( (source & INT_FOUND_SFD) != 0 ){ 
+		gIsCRCError = FALSE;
+	}
+	
 	if( (source & INT_CCA_COMPLETE) != 0 ){
 		gnPHY_CCACompleted = 1;
-		ml7404_trx_off();
 	}
 	
 	if( (source & INT_TX_COMPLETE) != 0 ){
@@ -577,6 +611,16 @@ void SK_PHY_Interrupt(void) {
 	}
 	
 	if( (source & INT_CRC_ERROR) != 0 ){
+		#ifdef DEBUG_INT
+		SK_print("INT:"); SK_print_hex(source, 8);
+		SK_print("...crc error\r\n");
+		#endif
+
+		rf_phy_reset();
+		ml7404_clear_rx_fifo();
+		//ml7404_trx_off();
+		//ml7404_go_rx_mode();
+		
 		gIsCRCError = TRUE;
 	}
 	
@@ -594,6 +638,13 @@ void SK_PHY_Interrupt(void) {
 	if( (source & INT_STATUS_GRP3) != 0 ){
 	  	//->ここでクリアするとCCA結果もクリアされるので注意
 	  	if( (source & INT_CCA_COMPLETE) != 0 ){
+		  	#ifdef DEBUG_CCA
+		  	SK_UB reg;
+		  	reg = ml7404_get_cca_status() & 0x03;
+			SK_print_hex(reg, 2);
+			#endif
+			
+		  	//CCA Comp以外のGRP3割り込み要因をクリア
 		  	ml7404_clear_interrupt_source( (source & ~(INT_CCA_COMPLETE)) & INT_STATUS_GRP3);
 		} else {
 			ml7404_clear_interrupt_source(source & INT_STATUS_GRP3);
@@ -663,9 +714,41 @@ SK_BOOL SK_PHY_ChangeChannel(SK_UB ch) {
 	
 	gnPHY_CurrentChannel = ch;
 	
+	RF_LOCK();
+	
+	ml7404_trx_off();		
+
 	ml7404_change_channel(ch - 24);
+
+	ml7404_go_rx_mode();
+	
+	RF_UNLOCK();
 	
 	return TRUE;
+}
+
+
+// -------------------------------------------------
+//   Set CCA Threshold
+// -------------------------------------------------
+
+void SK_PHY_SetCCAThreshold(SK_UB val){
+  	gnPHY_CCAThreshold = val;
+	ml7404_set_cca_threshold(gnPHY_CCAThreshold);
+}
+
+
+// -------------------------------------------------
+//   Setup working variables for TX
+// -------------------------------------------------
+
+static void InitTxContext(void){
+	gIsCRCError = FALSE;
+	gCCAResult = FALSE;
+	gCCAGuardTime = 0;
+	gnPHY_CCACompleted = FALSE;
+	gnPHY_TxCompleted = FALSE;
+	gnPHY_TxDataRequest = FALSE;
 }
 
 

@@ -28,7 +28,7 @@ extern "C" {
 // -------------------------------------------------
 
 //Note: ML7416ÇÕ4ÇÃî{êîÇéwíËÇ∑ÇÈÇ±Ç∆
-#define		SK_MBX_NUM					20			// total number of message box slots
+#define		SK_MBX_NUM					(DEF_DATA_MEMBLOCK_NUM+12)	// total number of message box slots
 #define		SK_CMD_MEMBLOCK_SIZE		24			// Block size for command memory pool
 #define		SK_CMD_MEMBLOCK_NUM			12			// Total number of command memory pool block
 #define		SK_DATA_MEMBLOCK_SIZE		(PSDU+40)	// Block size for data memory pool
@@ -91,7 +91,13 @@ enum	{
 	SS_ACK_INDICATION_CMD,
 	SS_DATA_CONFIRM_CMD,
 	SS_JOIN_REQUEST_CMD,
-	SS_JOIN_CONFIRM_CMD
+	SS_JOIN_CONFIRM_CMD,
+	
+	SS_REGISTER_DEVICE_REQUEST_CMD,
+	SS_REGISTER_DEVICE_RESPONSE_CMD,
+	SS_DEVICE_DB_REQUEST_CMD,
+	SS_DEVICE_DB_RESPONSE_CMD,
+	SS_FRMCNT_UPDATE_REQUEST_CMD
 };
 
 

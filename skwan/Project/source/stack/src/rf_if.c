@@ -48,7 +48,7 @@
 
 #define USE_DMAC
 
-#define DEBUGOUT
+//#define DEBUGOUT
 
 #ifndef DEBUGOUT
 #define SK_print(X) //
@@ -281,19 +281,35 @@ void	ml7404_reg_write_after_bit_and(ML7404_Register reg, SK_UB bitmask)
 void	ml7404_start_ecca(void)
 {
 	ml7404_reg_write_after_bit_and(b0_2DIV_CTRL, 0xFE ); //clear bit0
-	ml7404_reg_write8(b0_RF_STATUS, 0x03 ); //Force TRX off
 
+	//ml7404_reg_write8(b0_RF_STATUS, 0x03 ); //Force TRX off
+	ml7404_trx_off();
+
+	//bank3
+	/*
+	rf_reg_wr(0x00, 0x88);
+	rf_reg_wr(0x2D, 1);
+	rf_reg_wr(0x1B, 7);	
+	*/
+	
 	//CCA Enable
 	ml7404_reg_write8(b0_CCA_CTRL, 0x10 );
 
 	//RX_ON
 	//Start CCA
-	ml7404_reg_write8(b0_RF_STATUS, 0x06 );
+	//ml7404_reg_write8(b0_RF_STATUS, 0x06 );
+	//ml7404_go_rx_mode();
+	ml7404_go_ed_mode();
 }
 
 void	ml7404_go_rx_mode(void)
 {	
 	ml7404_change_state_and_wait(0x06, TRUE);
+}
+
+void	ml7404_go_ed_mode(void)
+{	
+	ml7404_change_state_and_wait(0xF6, TRUE);
 }
 
 void	ml7404_go_tx_mode(void)
@@ -307,6 +323,15 @@ void 	ml7404_trx_off(void)
 }
 
 
+/*
+mode:
+	0x03...Force TRX OFF
+	0x06...RX ON
+	0x08...TRX OFF
+	0x09...TX ON
+	0xF6...RX ON without ED_RSLT_SET=1
+	*) 0xF6はskyley独自追加
+*/
 SK_BOOL ml7404_change_state_and_wait(SK_UB mode, SK_BOOL wait)
 {
 	SK_UB stat;
@@ -321,30 +346,55 @@ SK_BOOL ml7404_change_state_and_wait(SK_UB mode, SK_BOOL wait)
 	  	cond = 0x80;
 	} else if( mode == 0x09 ){ //tx on
 	  	cond = 0x90;
+	} else if( mode == 0xF6 ){ //RX on w/o ED_RSLT_SET
+	  	cond = 0x60;
 	} else {
 	  	return FALSE;
 	}
 	
 	//check current status
 	stat = ml7404_reg_read8(b0_RF_STATUS);
-	if( (stat & cond) == cond ) return TRUE;
-
-	if( mode == 0x06 ){
+	if( (stat & cond) == cond ) {
+		if( mode == 0x06 || mode == 0xF6 ){
+			//go next
+		} else {
+			return TRUE;
+		}
+	}
+	
+	if( mode == 0x06 || mode == 0xF6 ){
 		//受信パケットRSSI値設定
 		//ED_RSLT_SET = 1;
-		ml7404_reg_write8(b0_ED_CTRL, (ml7404_reg_read8(b0_ED_CTRL) | 0x08));
-		
-		//SHR Gold Seed 再設定
-		ml7404_reg_write8(b7_SHR_GOLD_SEED3, (SK_UB)(gSHRGoldSeed>>24));
-		ml7404_reg_write8(b7_SHR_GOLD_SEED2, (SK_UB)(gSHRGoldSeed>>16));
-		ml7404_reg_write8(b7_SHR_GOLD_SEED1, (SK_UB)(gSHRGoldSeed>>8));
-		ml7404_reg_write8(b7_SHR_GOLD_SEED0, (SK_UB)(gSHRGoldSeed));
-
-		//PSDU Gold Seed 再設定
-		ml7404_reg_write8(b7_PSDU_GOLD_SEED3, (SK_UB)(gPSDUGoldSeed>>24));
-		ml7404_reg_write8(b7_PSDU_GOLD_SEED2, (SK_UB)(gPSDUGoldSeed>>16));
-		ml7404_reg_write8(b7_PSDU_GOLD_SEED1, (SK_UB)(gPSDUGoldSeed>>8));
-		ml7404_reg_write8(b7_PSDU_GOLD_SEED0, (SK_UB)(gPSDUGoldSeed));
+		/*
+		ED値は、ED_RSLT_SET([ED_CTRL: B0 0x41(3)])=0b0設定されている場合、RX_ON中に
+		常時更新されます。ED_RSLT_SET=0b1設定ではSyncWord検出時にED値を獲得し、受信
+		データのFIFOリード開始により値が更新されます。
+		*/
+		if( mode == 0x06 ){
+			ml7404_reg_write8(b0_ED_CTRL, (ml7404_reg_read8(b0_ED_CTRL) | 0x08));
+			
+			//SHR Gold Seed 再設定
+			ml7404_reg_write8(b7_SHR_GOLD_SEED3, (SK_UB)(gSHRGoldSeed>>24));
+			ml7404_reg_write8(b7_SHR_GOLD_SEED2, (SK_UB)(gSHRGoldSeed>>16));
+			ml7404_reg_write8(b7_SHR_GOLD_SEED1, (SK_UB)(gSHRGoldSeed>>8));
+			ml7404_reg_write8(b7_SHR_GOLD_SEED0, (SK_UB)(gSHRGoldSeed));
+	  
+			//PSDU Gold Seed 再設定
+			ml7404_reg_write8(b7_PSDU_GOLD_SEED3, (SK_UB)(gPSDUGoldSeed>>24));
+			ml7404_reg_write8(b7_PSDU_GOLD_SEED2, (SK_UB)(gPSDUGoldSeed>>16));
+			ml7404_reg_write8(b7_PSDU_GOLD_SEED1, (SK_UB)(gPSDUGoldSeed>>8));
+			ml7404_reg_write8(b7_PSDU_GOLD_SEED0, (SK_UB)(gPSDUGoldSeed));
+			
+		} else if( mode == 0xF6 ){
+			//ED_RSLT_SET = 0, ED 常時更新
+			ml7404_reg_write8(b0_ED_CTRL, (ml7404_reg_read8(b0_ED_CTRL) & ~0x08));
+			mode = 0x06; //switch ED mode to RX_ON here 
+		} 
+	}
+	
+	//0x06, 0xF6で、すでにRX_ON状態の場合は、Gold seed, ED_CTRL再設定だけ実行する
+	if( (stat & cond) == cond ) {
+	  	return TRUE;
 	}
 	
 	//INT_STATUS_CHANGEDをポーリングするためRF割り込みマクスは必要
@@ -466,15 +516,32 @@ SK_UB	ml7404_get_cca_status(void)
 void	ml7404_clear_cca_status(void)
 {
 	/*
-	CCA完了割込みをクリアするとCCA_RSLT[1:0]([CCA_CTRL: B0 0x39(1-0)])は初期化(0b00)されます。
-	CCA_RSLT[1:0]はCCA完了割込みをクリアする前に読み出して下さい。
-	*/
-	ml7404_reg_write_after_bit_and(b0_CCA_CTRL, 0xFC);
+  	CCA完了割込みをクリアするとCCA_RSLT[1:0]([CCA_CTRL: B0 0x39(1-0)])は初期化(0b00)されます。
+  	CCA_RSLT[1:0]はCCA完了割込みをクリアする前に読み出して下さい。
+  	*/
+  	ml7404_reg_write_after_bit_and(b0_CCA_CTRL, 0xFC);
+}
+
+void ml7404_set_cca_threshold(SK_UB threshold){
+	ml7404_reg_write8(b0_CCA_LVL, threshold);  
 }
 
 SK_UB	ml7404_get_rssi(void)
 {
 	SK_UB rssi;
+	
+	rssi = ml7404_reg_read8(b0_ED_RSLT);
+
+	return rssi;
+}
+
+SK_UB	ml7404_get_ed_value(void)
+{
+	SK_UB rssi;
+	
+	ml7404_go_ed_mode();
+	
+	while( (ml7404_reg_read8(b0_ED_CTRL) & 0x10) == 0 ); //wait for ED_DONE (ED CTRL bit4)
 	
 	rssi = ml7404_reg_read8(b0_ED_RSLT);
 
@@ -507,15 +574,16 @@ void	ml7404_clear_tx_fifo(void)
 // -------------------------------------------------
 //   Channel setting
 // -------------------------------------------------
-/**
-ch 0 -> 920.7MHz
+/*
+20171025 5単位チャンネル
+ch 0 -> 921.0MHz
 ...
 ...
-ch 36 -> 927.9MHz
+ch 33 -> 927.6MHz
 
 チャネル周波数= CH#0周波数 + チャネル間隔 * チャネル設定
 
-CH#0周波数 = 920.7
+CH#0周波数 = 921.0
 チャネル間隔 = 200KHz
 */
 void	ml7404_change_channel(SK_UB channel)
@@ -537,13 +605,21 @@ SLEEP1
 */
 void	ml7404_sleep(void)
 {
-	//ml7404_trx_off();
+	ml7404_trx_off();
 
 	//RC32K_EN = 0
 	ml7404_reg_write8(b0_CLK_SET2,(ml7404_reg_read8(b0_CLK_SET2) & ~(0x01<<3)));
 
 	//RF sleep1 mode
 	ml7404_reg_write8(b0_SLEEP_WU_SET, (ml7404_reg_read8(b0_SLEEP_WU_SET) | 0x01));
+
+	/* deep sleep
+	gpio_rf_chip_disable(); //RESETN Lo
+	
+	{ SK_UH cnt = 10000; while(cnt--); }
+	
+	gpio_rf_regpdin_enable(); //REGPDIN Hi
+	*/
 }
 
 // -------------------------------------------------
@@ -658,8 +734,13 @@ void rf_reg_init(void){
 	//BANK1
 	rf_reg_wr(0x00, 0x22);
 	
+	//GPIO1_CTRL(EXT_CLK_OUT=OFF)
+	rf_reg_wr(0x4F, 0x0);
+
+	
+	
 	//OSC_W_SEL
-	rf_reg_wr(0x08, 0x40);
+	//rf_reg_wr(0x08, 0x40); //skyley add
 
 	//クロック安定化待ち時間
 	wait_no_timer(WAIT_1MS); 
@@ -667,42 +748,64 @@ void rf_reg_init(void){
 	//CLK安定化完了待ち
 	ml7404_wait_for_int_event(INT_CLOCK_STABLE, 255);
 	
-	//GPIO1_CTRL(EXT_CLK_OUT=OFF)
-	rf_reg_wr(0x4F, 0x0);
-	
-	//XTAL ADJT
-	//rf_reg_wr(0x62, 0x88);
-	//rf_reg_wr(0x63, 0x80);
-	
-	//BANK6
-	//0x50-51 
-	rf_reg_wr(0x00, 0x33);
-	rf_reg_wr(0x50, 0x01);
-	rf_reg_wr(0x51, 0x00);
 
+	
+	//PA_REG_ADJ_H/L 10dBm設定
+	rf_reg_wr(0x67, 0x00);
+	rf_reg_wr(0x68, 0x89);
 
-	//BANK3
-	rf_reg_wr(0x00, 0x88);
-	
-	//RSSI_SEL
-	rf_reg_wr(0x2C, 0x00);
-	
 	
 	//BANK2
 	rf_reg_wr(0x00, 0x44);
-	
-	//AAF_ADJ
-	rf_reg_wr(0x11, 0x00);
-	
-	//VCO_I_CTRL
-	rf_reg_wr(0x24, 0x0A);	
 
+	//VCO_I_CTRL
+	rf_reg_wr(0x24, 0x07);	
+
+	//PLL_CP_ADJ
+	rf_reg_wr(0x16, 0x55); //0x33_default(起動時Icp) 	
+	rf_reg_wr(0x1C, 0x55); //0x33_default(動作時Icp) 
+	
+	//PA_CURR
+	rf_reg_wr(0x1A, 0x6E);	
+	
+	//LNA_RESERVE
+	rf_reg_wr(0x29, 0x5F);	
+	
+	//IFAMP_GAIN
+	rf_reg_wr(0x2A, 0x1F);		
+	
+	//RFRX_RSV
+	rf_reg_wr(0x2F, 0xA7);		
+	
+	//DSM_PHASE
+	rf_reg_wr(0x32, 0x4C);		
+	
+	//VBG_TRIM  (注意: 基板毎に個別調整必要!!!)
+	rf_reg_wr(0x38, 0x19); //REG_CORE=1.6V	
+	
+	
+	
+#if 0 //Xtalの場合
+	//BANK1
+	rf_reg_wr(0x00, 0x22);
+	
+	//FIFO_SET
+	rf_reg_wr(0x07, 0x3E); //Xtal 
+#endif
+	
+	
+#if 0
 	//BANK0
 	rf_reg_wr(0x00, 0x11);
+	
 	//FIFO_SET
-	rf_reg_wr(0x78, 0x02);
-
-
+	rf_reg_wr(0x78, 0x02);  
+#endif
+	
+	
+	// --------------------------------
+	// DSSS Setting
+	// --------------------------------
 	//
 	//Frequency Band Setting
 	//BANK1
@@ -711,6 +814,21 @@ void rf_reg_init(void){
 	//PLL_DIV_SET
 	rf_reg_wr(0x1A, 0x00);
 	
+#if 1
+	//0x1B-1E TXFREQ_I/FH/FM/FL
+	// 921.0MHz
+	rf_reg_wr(0x1B, 0x19);
+	rf_reg_wr(0x1C, 0x09);
+	rf_reg_wr(0x1D, 0x55);
+	rf_reg_wr(0x1E, 0x55);
+	
+	//0x1F-22 RXFREQ_I/FH/FM/FL
+	// 921.0MHz
+	rf_reg_wr(0x1F, 0x19);
+	rf_reg_wr(0x20, 0x09);
+	rf_reg_wr(0x21, 0x55);
+	rf_reg_wr(0x22, 0x55);	
+#else
 	//0x1B-1E TXFREQ_I/FH/FM/FL
 	// 920.7MHz
 	rf_reg_wr(0x1B, 0x19);
@@ -719,30 +837,21 @@ void rf_reg_init(void){
 	rf_reg_wr(0x1E, 0x33);
 	
 	//0x1F-22 RXFREQ_I/FH/FM/FL
+	// 920.7MHz
 	rf_reg_wr(0x1F, 0x19);
 	rf_reg_wr(0x20, 0x09);
 	rf_reg_wr(0x21, 0x33);
 	rf_reg_wr(0x22, 0x33);	
+#endif
 	
 	//0x4d-51 VCAL RANGE
+	// Frf_MIN:919.6(920-0.4)/Fref:24/12MHzCAL Range
 	rf_reg_wr(0x4D, 0x19);
 	rf_reg_wr(0x4E, 0x05);
 	rf_reg_wr(0x4F, 0x05);
 	rf_reg_wr(0x50, 0xB0);		
 	rf_reg_wr(0x51, 0x05);
-	
-	
-	//BANK2
-	rf_reg_wr(0x00, 0x44);
-	
-	//PLL_CP
-	//rf_reg_wr(0x1C, 0x33);  //20170708 change
-	
-	//VCO_I_CTRL
-	rf_reg_wr(0x24, 0x0A);
-	
-	//LNA setting
-	//rf_reg_wr(0x2D, 0x26); //20170708 change
+		
 	
 	//
 	//Channel Space Setting
@@ -760,6 +869,7 @@ void rf_reg_init(void){
 	rf_reg_wr(0x23, 0x16);
 	rf_reg_wr(0x24, 0xC1);
 
+	
 	//
 	//Channnel Number
 	//
@@ -777,31 +887,31 @@ void rf_reg_init(void){
 	rf_reg_wr(0x00, 0x11);	
 	
 	//DRATE_SET
-	rf_reg_wr(0x06, 0xCC);	//200cps
+	rf_reg_wr(0x06, 0xCC);	//200 kcps
 	
-	//DATA_SET1
-	rf_reg_wr(0x07, 0x15);	//NRZ 20170708 0x05->0x15
-	
+	//SYNC_CONDITION1
+	rf_reg_wr(0x45, 0x02);
+		
 	//SYNC_CONDITION3
-	rf_reg_wr(0x47, 0x10); //20170708 add
-	
+	rf_reg_wr(0x47, 0x01);
+		
 	//CHFIL_BW
-	rf_reg_wr(0x54, 0x01);	//200khz
-	
+	//rf_reg_wr(0x54, 0x01);	
+		
 	//DC_FIL_MODE
-	rf_reg_wr(0x59, 0x95); //20170708 0x15 -> 0x95
-	
+	rf_reg_wr(0x59, 0x15);
+		
 	//DEC_GAIN
-	//rf_reg_wr(0x60, 0x18);  20170708 out
-	
+	//rf_reg_wr(0x60, 0x18);
+		
 	//IF_FREQ
-	//rf_reg_wr(0x61, 0x00); //225KHz 20170708 out
+	// 225kHz
+	rf_reg_wr(0x61, 0x00);
 	
 	//CHFIL_BW_CCA
-	//rf_reg_wr(0x6A, 0x81); //400KHz 20170708 out
-	
-	//DC_FIL_SEL2
-	//rf_reg_wr(0x6C, 0x03);  //20170708 out
+	// 400kHz
+	//rf_reg_wr(0x6A, 0x81);
+
 	
 	
 	//BANK1
@@ -814,112 +924,41 @@ void rf_reg_init(void){
 	rf_reg_wr(0x05, 0x04);
 	
 	//RSSI_MAG_ADJ
-	//rf_reg_wr(0x13, 0x0C); //20170708 out
+	rf_reg_wr(0x13, 0x0B);
+	
 	
 	
 	//BANK2
 	rf_reg_wr(0x00, 0x44);
 	
 	//BPSK_DLY_ADJ
-	rf_reg_wr(0x19, 0x08); //20170708 0x03 -> 0x08
+	rf_reg_wr(0x19, 0x08);
 
 	//LNA_RESERVE
-	rf_reg_wr(0x29, 0xE6); //20170708 add
+	rf_reg_wr(0x29, 0xC6);
 	
 	//PAREG_OLR2 
-	rf_reg_wr(0x2F, 0xE7); //20170708 add
+	rf_reg_wr(0x2F, 0xE7);
 	
 	//RSSI_ADJ2
-	//rf_reg_wr(0x0E, 0x45); //20170708 out
+	rf_reg_wr(0x0E, 0x52);
 	
 	// AGC/RSSI_OFFSET
-//20170708 out
-#if 0
-	rf_reg_wr(0x76, 0x8E);	
-	rf_reg_wr(0x77, 0x32);
-	rf_reg_wr(0x78, 0x8E);
-	rf_reg_wr(0x79, 0x32);
-	rf_reg_wr(0x7A, 0x8E);
-	rf_reg_wr(0x7B, 0x32);
-	rf_reg_wr(0x7C, 0x22);
-	rf_reg_wr(0x7D, 0x47);
-	rf_reg_wr(0x7E, 0x6E);	
-#endif
-	
-	//BANK3
-//20170708 out
-#if 0
-	rf_reg_wr(0x00, 0x88);
-	
-	//DIF_SET0
-	rf_reg_wr(0x26, 0x35);
-	
-	
-	//
-	//BPSK Setting
-	//
-	//BANK6
-	rf_reg_wr(0x00, 0x33);
-	
-	//MOD_CTRL
-	rf_reg_wr(0x01, 0x01); //BPSK
-	
-	//MOD_DEV0-15
-	rf_reg_wr(0x32, 0x00);	
-	rf_reg_wr(0x33, 0x00);
-	rf_reg_wr(0x34, 0x00);
-	rf_reg_wr(0x35, 0x09);
-	rf_reg_wr(0x36, 0x00);
-	rf_reg_wr(0x37, 0x1C);
-	rf_reg_wr(0x38, 0x00);
-	rf_reg_wr(0x39, 0x3A);
-	rf_reg_wr(0x3A, 0x00);
-	rf_reg_wr(0x3B, 0x56);
-	rf_reg_wr(0x3C, 0x00);
-	rf_reg_wr(0x3D, 0x78);
-	rf_reg_wr(0x3E, 0x00);
-	rf_reg_wr(0x3F, 0x9D);
-	rf_reg_wr(0x40, 0x00);
-	rf_reg_wr(0x41, 0xBE);
+	rf_reg_wr(0x76, 0x8B);	
+	rf_reg_wr(0x77, 0x3C);
+	rf_reg_wr(0x78, 0x8B);
+	rf_reg_wr(0x79, 0x3C);
+	rf_reg_wr(0x7A, 0x8B);
+	rf_reg_wr(0x7B, 0x3C);
+	rf_reg_wr(0x7C, 0x2B);
+	rf_reg_wr(0x7D, 0x4D);
+	rf_reg_wr(0x7E, 0x7D);	
 
-	rf_reg_wr(0x42, 0x00);	
-	rf_reg_wr(0x43, 0xD7);
-	rf_reg_wr(0x44, 0x00);
-	rf_reg_wr(0x45, 0xE7);
-	rf_reg_wr(0x46, 0x00);
-	rf_reg_wr(0x47, 0xF0);
-	rf_reg_wr(0x48, 0x00);
-	rf_reg_wr(0x49, 0xF6);
-	rf_reg_wr(0x4A, 0x00);
-	rf_reg_wr(0x4B, 0xFE);
-	rf_reg_wr(0x4C, 0x01);
-	rf_reg_wr(0x4D, 0x03);
-	rf_reg_wr(0x4E, 0x01);
-	rf_reg_wr(0x4F, 0x07);
-	rf_reg_wr(0x50, 0x01);
-	rf_reg_wr(0x51, 0x0A);
-	
-	//MOD_TIM_ADJ0-14
-	rf_reg_wr(0x62, 0x03);	
-	rf_reg_wr(0x63, 0x02);
-	rf_reg_wr(0x64, 0x02);
-	rf_reg_wr(0x65, 0x02);
-	rf_reg_wr(0x66, 0x04);
-	rf_reg_wr(0x67, 0x05);
-	rf_reg_wr(0x68, 0x04);
-	rf_reg_wr(0x69, 0x04);
-	rf_reg_wr(0x6A, 0x04);
-	rf_reg_wr(0x6B, 0x03);
-	rf_reg_wr(0x6C, 0x02);
-	rf_reg_wr(0x6D, 0x03);
-	rf_reg_wr(0x6E, 0x02);
-	rf_reg_wr(0x6F, 0x02);
-	rf_reg_wr(0x70, 0x02);
-#endif
-	
+
+
 	//BANK7
+	// SF=64
 	rf_reg_wr(0x00, 0x55);
-
 
 	//DSSS_CTRL/DSSS_MODE/FEC_ENC_CTRL/FEC_DEC_CTRL/SF_CTRL
 	//FEC/INTLV Disable
@@ -936,15 +975,13 @@ void rf_reg_init(void){
 	rf_reg_wr(0x06, 0x22); //SF=64
 
 	//SS_AFC_RANGE_SYNC/SS_AFC_RANGE
-//20170708 out
-#if 0
+#if 1
 	rf_reg_wr(0x14, 0x05);  
 	rf_reg_wr(0x15, 0x05); //18/18MHz
 #endif
 	
 	//DSSS_RATE_SYNC_H-DSSS_RATE_L
-//20170708 out
-#if 0
+#if 1
 	rf_reg_wr(0x17, 0x00);
 	rf_reg_wr(0x18, 0x59);
 	rf_reg_wr(0x19, 0x00);
@@ -952,48 +989,51 @@ void rf_reg_init(void){
 #endif
 	
 	//SS_SYNC_BIT8_GATE_H/L, SS_SYNC_BIT8_GATE2_H/L, SS_SYNC_BIT_GATE_H/L
-	rf_reg_wr(0x1B, 0x01);	
-	rf_reg_wr(0x1C, 0x00); //20170708
-	rf_reg_wr(0x1D, 0x01); //20170708
-	rf_reg_wr(0x1E, 0x10); //20170708
-	rf_reg_wr(0x1F, 0x00); //20170708
-	rf_reg_wr(0x20, 0xFC); //20170708
+	rf_reg_wr(0x1B, 0x01);
+	rf_reg_wr(0x1C, 0x0C);
+	rf_reg_wr(0x1D, 0x01);
+	rf_reg_wr(0x1E, 0x1C);
+	rf_reg_wr(0x1F, 0x00);
+	rf_reg_wr(0x20, 0xD2);
 	
 
 	//SS_SYNC_BIT4_GATE_H/L
-//20170708 out
-#if 0
-	rf_reg_wr(0x21, 0x02);
-	rf_reg_wr(0x22, 0x40);
+#if 1
+	rf_reg_wr(0x21, 0x01);
+	rf_reg_wr(0x22, 0x2C);
 #endif
 	
 	//SS_SYNC_LOST_GATE
-	rf_reg_wr(0x23, 0x0F);
+	rf_reg_wr(0x23, 0x14);
 
-	//DSSS_SET3
-	//rf_reg_wr(0x2E, 0x07); //20170708 out
 
 	//AGC_AVE_OFST_SYNC-AGC_IIR_SET1
-//20170708 out
-#if 0
-	rf_reg_wr(0x27, 0x18);
-	rf_reg_wr(0x28, 0xA8);
-	rf_reg_wr(0x29, 0x43);
-	rf_reg_wr(0x2A, 0x07);
+#if 1
+	rf_reg_wr(0x27, 0x2A);
+	rf_reg_wr(0x28, 0x9C);
+	rf_reg_wr(0x29, 0x44);
+	rf_reg_wr(0x2A, 0x25);
 #endif
 	
 	//BIT8_SPDET_TH_H/L
-	rf_reg_wr(0x35, 0x02);
-	rf_reg_wr(0x36, 0x30);
+	rf_reg_wr(0x35, 0x01);
+	rf_reg_wr(0x36, 0xF4);
 
-	rf_reg_wr(0x38, 0x13); 
+	//DSSS_SET7/8
+	rf_reg_wr(0x37, 0x34);
+	rf_reg_wr(0x38, 0x14); 
 
+	//DSSS_SET8/9
+	rf_reg_wr(0x39, 0x32);
+	rf_reg_wr(0x3A, 0x25); 
+	
 	
 	// ---20170708 add
 	//BANK10
 	rf_reg_wr(0x00, 0x99);
 	
 	{
+	  	/*
 	  	static const SK_UB bank10_1_64[70] = 
 		{
 		  	0x10, 0x01, 0x00, 0x20, 0x22, 0x22, 0x33, 0x22, 0x43, 0x43, 0x54, 0x45, 0x65, 0x76, 0x87,
@@ -1002,7 +1042,26 @@ void rf_reg_init(void){
 			0x87, 0x57, 0x34, 0x22, 0x22, 0x23, 0x22, 0x22, 0x22, 0x22, 0x02, 0x00, 0x00, 0x00, 0x00, 
 			0x00, 0x00, 0x00, 0x53, 0x03, 0x02, 0x00, 0x00, 0x01, 0x01
 		};
-	
+		*/
+	  /*
+		static const SK_UB bank10_1_64[70] =
+		{
+			0x10, 0x01, 0x00, 0x20, 0x11, 0x21, 0x21, 0x21, 0x51, 0x43, 0x34, 0x44, 0x54, 0x65, 0x66, 0x66,
+			0x34, 0x36, 0x55, 0x35, 0x36, 0x23, 0x21, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+			0x00, 0x00, 0x20, 0x22, 0x21, 0x22, 0x32, 0x53, 0x55, 0x63, 0x43, 0x66, 0x66, 0x56, 0x45, 0x44,
+			0x43, 0x34, 0x15, 0x12, 0x12, 0x12, 0x11, 0x02, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x63,
+			0x03, 0x02, 0x00, 0x00, 0x01, 0x03
+		};
+	*/
+		static const SK_UB bank10_1_64[70] =
+		{
+		  	0x10, 0x01, 0x00, 0x20, 0x22, 0x22, 0x32, 0x22, 0x72, 0x65, 0x56, 0x76, 0x85, 0xA7, 0x99, 0x89,
+			 0x48, 0x68, 0x77, 0x58, 0x68, 0x33, 0x23, 0x02, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+			 0x00, 0x00, 0x30, 0x34, 0x31, 0x33, 0x53, 0x84, 0x77, 0x86, 0x84, 0x98, 0x99, 0x7A, 0x58, 0x67,
+			 0x65, 0x56, 0x27, 0x22, 0x23, 0x22, 0x22, 0x02, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x63,
+			 0x03, 0x02, 0x00, 0x00, 0x01, 0x03
+		};
+		
 		SK_UB i;
 		for( i = 0; i < sizeof(bank10_1_64); i++ ){
 			rf_reg_wr(i + 1, bank10_1_64[i]); 
@@ -1037,8 +1096,15 @@ void rf_reg_init(void){
 	//rf_reg_wr(0x05, 0x14);
 	//Length Field=1, CRC16, TRX CRC Enable
 	//rf_reg_wr(0x05, 0x1C);
-	//CRC Enable
-	rf_reg_wr(0x05, rf_reg_rd(0x05) | 0x4);
+	//TX, RX CRC Enable
+	rf_reg_wr(0x05, rf_reg_rd(0x05) | 0xC);
+	
+	//ED値算出時の平均回数設定 8回
+	rf_reg_wr(0x41, rf_reg_rd(0x41) | 0x03);
+
+	
+	//CRC_INT_SET debug
+	//rf_reg_wr(0x13, 0x10);
 	
 	//
 	//VCO Calibration
@@ -1064,10 +1130,11 @@ void rf_reg_init(void){
 	ml7404_enable_interrupt_source(INT_STATUS_GRP1 | INT_STATUS_GRP2 | INT_STATUS_GRP3);
 	
 	//Set CCA threshold
-	ml7404_reg_write8(b0_CCA_LVL, 240); //tmp value
+	//ml7404_reg_write8(b0_CCA_LVL, 240); //tmp value
 	
 	//doing later
 	//ml7404_go_rx_mode();
 	
 	RF_UNLOCK();
 }
+

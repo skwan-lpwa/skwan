@@ -162,11 +162,8 @@ void 	init_peripheral(void)
 	//MCU Power save settings
 	syscon_writePPM1( ~(0x00000001<<20) ); //TimerA Enable
 	syscon_writePPM2( ~(0x00000001<<20) ); //TimerA Enable
-	////MODE_CNT0->MODE_CNT_DPSLP    = dpslp_val;
-	////MODE_CNT0->MODE_CNT_FLDPSTB  = fldpstb_val;
-	//syscon_writePCLKDIS( ~(0x00000001<<20) ); // org = 0x00000000
 #endif
-  
+
 	UART_Initialize();
 	
 	spi2Init(USE_DMAC);
@@ -486,7 +483,7 @@ ToDo: ORE etc uart error‚Ìƒnƒ“ƒhƒŠƒ“ƒO
 */
 
 void UART0_IRQHandler(void)
-	{
+{
 	uint8_t iir= (uint8_t)(UX_UART0->UARTn_IIR & 0x0F);
 	uint8_t input;
 
@@ -668,6 +665,18 @@ void	gpio_rf_chip_disable(void)
 {
 	//GPIOC[15] low
 	UX_GPIO2->GPIOn_SWPORTA_DR &= ~(0x00000001 << 15);
+}
+
+void	gpio_rf_regpdin_enable(void)
+{
+	//GPIOC[13] hi
+	UX_GPIO2->GPIOn_SWPORTA_DR |= (0x00000001 << 13);
+}
+
+void	gpio_rf_regpdin_disable(void)
+{
+	//GPIOC[13] low
+	UX_GPIO2->GPIOn_SWPORTA_DR &= ~(0x00000001 << 13);
 }
 
 void	gpio_rf_spi_enable(void)
@@ -965,7 +974,6 @@ void RF_Wakeup(void){
 }
 
 
-
 static SK_UB gDbgPort1 = 0;
 static SK_UB gDbgPort2 = 0;
 
@@ -997,7 +1005,6 @@ SK_UB DebugPort_Get(SK_UB num){
 		return gDbgPort2;
 	}
 }
-
 
 
 void TimerLock(void){

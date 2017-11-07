@@ -64,6 +64,9 @@ void SK_print_key(SK_UB* data, SK_UB len);
 void _putc(char ch);
 SK_H _getc(void);
 void InitTrackingState(void);
+SK_BOOL PostJoinReq(SK_UW sta_id);
+SK_BOOL PostRegDevRes(SK_UH slot, SK_UB idx, SK_UB key[]);
+SK_BOOL PostDevDBRes(SK_UH slot, SK_UB idx, SK_UB key[], SK_UW frame_cnt, SK_UW out_frame_cnt, SK_ADDRESS* addr);
 
 extern SK_BOOL SetEncKeyOf(SK_ADDRESS* addr, SK_UB* key, SK_UB key_len);
 extern SK_UW gnSSMac_FrameCounter; 
@@ -152,7 +155,7 @@ extern SK_UW gPSDUGoldSeed;
 	#define PERBLOCK 		498 //= 0x1C03E400
 	#define MAC_PERBLOCK	499 //= 0x1C03E400
 	#define PERBANK			0
-	#define PERDATA_SIZE	128
+	#define PERDATA_SIZE	256
 	static SK_UB			gPerData[ PERDATA_SIZE ];
 #endif
 
@@ -237,10 +240,10 @@ void CommandInit(void){
 		
 		SSMac_SetHoppingTable(3);
 		
-		SSMac_SetChannelTable(0, 1);
-		SSMac_SetChannelTable(1, 2);
-		SSMac_SetChannelTable(2, 3);
-		SSMac_SetChannelTable(3, 4);
+		SSMac_SetChannelTable(0, 33);
+		SSMac_SetChannelTable(1, 34);
+		SSMac_SetChannelTable(2, 35);
+		SSMac_SetChannelTable(3, 36);
 		
 		for( i = 0; i < 255; i++ ){
 			for( j = 0; j < 256; j++ ){
@@ -315,7 +318,7 @@ void SetupParams(void){
 	gn_nLineStatus = SAMPLEAPP_STATUS_LINE;
 	gn_nMenuStatus = SAMPLEAPP_MENU_TOP;
 	
-	SSMac_SetBaseChannel(24);
+	SSMac_SetBaseChannel(33);
 
 	SSMac_SetSlotMode(SS_SLOTMODE_32);
 	
@@ -705,6 +708,10 @@ void Interface(void) {
 							SK_print("ESREG ");
 							SK_print_hex(gPSDUGoldSeed, 8);
 
+						} else if(sregno == 42 ){
+							SK_print("ESREG ");
+							SK_print_hex(gnPHY_CCAThreshold, 2);
+
 						} else if(sregno == 250 ){
 							SK_print("ESREG ");
 							SK_print_hex(gnPHY_TestMode, 2);
@@ -952,7 +959,7 @@ void Interface(void) {
 							ml7404_trx_off();
 							ml7404_go_rx_mode();
 
-						}else if(sregno == 41){
+						} else if(sregno == 41){
 							if(ParamCheck(ATParam[2], &val, 8, 0xFFFFFFFF, 0) != SK_E_OK){
 								SK_print("FAIL ER06\r\n");
 								gn_nMenuStatus = SAMPLEAPP_MENU_TOP;
@@ -962,7 +969,16 @@ void Interface(void) {
 							gPSDUGoldSeed = val;
 							ml7404_trx_off();
 							ml7404_go_rx_mode();
+						
+						} else if(sregno == 42){
+							if(ParamCheck(ATParam[2], &val, 2, 0xFF, 0) != SK_E_OK){
+								SK_print("FAIL ER06\r\n");
+								gn_nMenuStatus = SAMPLEAPP_MENU_TOP;
+								break;
+							}
 
+							SK_PHY_SetCCAThreshold(val);
+							
 						//for Frame counter test
 						} else if(sregno == 248){
 							if(ParamCheck(ATParam[2], &val, 8, 0x00FFFFFF, 0) != SK_E_OK){
@@ -1169,7 +1185,7 @@ void Interface(void) {
 					SK_ADDRESS target;
 					SK_UW datalen;
 					SK_BOOL result;
-					SK_UW addr;
+					SK_UW addr; //to avoid "ワーニング[Pa039]: use of address of unaligned structure member"
 
 					if(NumOfATParam != 4){
 						SK_print("FAIL ER05\r\n");
@@ -1326,6 +1342,78 @@ void Interface(void) {
 					gn_nMenuStatus = SAMPLEAPP_MENU_TOP;
 					break;
 				
+				} else if(strcmp((const char *)ATParam[0], (const char *)"SKREGRES") == 0){
+					SK_UW slot, idx;
+
+					if(NumOfATParam != 4){
+						SK_print("FAIL ER05\r\n");
+						gn_nMenuStatus = SAMPLEAPP_MENU_TOP;
+						break;
+					}
+				
+					if( (ParamCheck(ATParam[1], (SK_UW *)&slot, 4, 1024, 1) != SK_E_OK) ||
+						(ParamCheck(ATParam[2], (SK_UW *)&idx, 1, 1, 0) != SK_E_OK) ){
+						SK_print("FAIL ER06\r\n");
+						gn_nMenuStatus = SAMPLEAPP_MENU_TOP;
+						break;
+					}
+
+					//必ずASCII 32文字と仮定
+					memset(gSendDataBuffer, 0, 32);
+					HexToBin(gSendDataBuffer, ATParam[3], 16);
+					
+					PostRegDevRes((SK_UH)slot, (SK_UB)idx, gSendDataBuffer);
+					
+					gn_nMenuStatus = SAMPLEAPP_MENU_TOP;
+					break;
+				
+				} else if(strcmp((const char *)ATParam[0], (const char *)"SKDBRES") == 0){
+					SK_UW slot, idx, frmcnt, outfrmcnt;
+					SK_ADDRESS target;
+					SK_UW addr;
+					
+					if(NumOfATParam != 7){
+						SK_print("FAIL ER05\r\n");
+						gn_nMenuStatus = SAMPLEAPP_MENU_TOP;
+						break;
+					}
+				
+					if( (ParamCheck(ATParam[1], (SK_UW *)&slot, 4, 1024, 1) != SK_E_OK) ||
+						(ParamCheck(ATParam[2], (SK_UW *)&idx, 2, 0xFF, 0) != SK_E_OK) ||
+						(ParamCheck(ATParam[4], (SK_UW *)&frmcnt, 8, 0x00FFFFFF, 0) != SK_E_OK) ||
+						(ParamCheck(ATParam[5], (SK_UW *)&outfrmcnt, 8, 0x00FFFFFF, 0) != SK_E_OK) ){
+						SK_print("FAIL ER06\r\n");
+						gn_nMenuStatus = SAMPLEAPP_MENU_TOP;
+						break;
+					}
+						
+					//IEEE 64-bit address
+					if(ParamCheck(ATParam[6] + 8, &addr, 8, 0xFFFFFFFF, 0x00000000) != SK_E_OK){
+						SK_print("FAIL ER06\r\n");
+						gn_nMenuStatus = SAMPLEAPP_MENU_TOP;
+						break;
+					}
+					target.Body.Extended.m_Long[1] = addr;
+
+					*(ATParam[6] + 8) = 0;
+					if(ParamCheck(ATParam[6], &addr, 8, 0xFFFFFFFF, 0x00000000) != SK_E_OK){
+						SK_print("FAIL ER06\r\n");
+						gn_nMenuStatus = SAMPLEAPP_MENU_TOP;
+						break;
+					}
+					target.Body.Extended.m_Long[0] = addr;
+						
+					target.m_AddrMode = SK_ADDRMODE_EXTENDED;
+
+					//必ずASCII 32文字と仮定
+					memset(gSendDataBuffer, 0, 32);
+					HexToBin(gSendDataBuffer, ATParam[3], 16);
+
+					PostDevDBRes((SK_UH)slot, (SK_UB)idx, gSendDataBuffer, frmcnt, outfrmcnt, &target);
+					
+					gn_nMenuStatus = SAMPLEAPP_MENU_TOP;
+					break;
+				
 				} else if(strcmp((const char *)ATParam[0], (const char *)"SKADDDEV") == 0){
 					SK_ADDRESS target;
 					SK_BOOL ans;
@@ -1356,6 +1444,45 @@ void Interface(void) {
 					target.m_AddrMode = SK_ADDRMODE_EXTENDED;
 					
 					ans = SSMac_AutoJoin(&target);
+					if( ans == TRUE ){
+						SK_print("OK\r\n");	
+					} else {
+						SK_print("FAIL ER10\r\n");
+					}
+					
+					gn_nMenuStatus = SAMPLEAPP_MENU_TOP;
+					break;
+				
+				} else if(strcmp((const char *)ATParam[0], (const char *)"SKRMDEV") == 0){
+					SK_ADDRESS target;
+					SK_BOOL ans;
+					SK_UW addr;
+						
+					if(NumOfATParam != 2){
+						SK_print("FAIL ER05\r\n");
+						gn_nMenuStatus = SAMPLEAPP_MENU_TOP;
+						break;
+					}
+	
+					//IEEE 64-bit address
+					if(ParamCheck(ATParam[1] + 8, &addr, 8, 0xFFFFFFFF, 0x00000000) != SK_E_OK){
+						SK_print("FAIL ER06\r\n");
+						gn_nMenuStatus = SAMPLEAPP_MENU_TOP;
+						break;
+					}
+					target.Body.Extended.m_Long[1] = addr;
+
+					*(ATParam[1] + 8) = 0;
+					if(ParamCheck(ATParam[1], &addr, 8, 0xFFFFFFFF, 0x00000000) != SK_E_OK){
+						SK_print("FAIL ER06\r\n");
+						gn_nMenuStatus = SAMPLEAPP_MENU_TOP;
+						break;
+					}
+					target.Body.Extended.m_Long[0] = addr;
+
+					target.m_AddrMode = SK_ADDRMODE_EXTENDED;
+					
+					ans = SSMac_RemoveDev(&target);
 					if( ans == TRUE ){
 						SK_print("OK\r\n");	
 					} else {
@@ -1467,7 +1594,7 @@ void Interface(void) {
 
 					if( (ParamCheck(ATParam[1], (SK_UW *)&index, 2, 3, 0) != SK_E_OK) ||
 						(ParamCheck(ATParam[2], (SK_UW *)&slot, 4, 1023, 0) != SK_E_OK) ||
-						(ParamCheck(ATParam[3], (SK_UW *)&channel, 2, 60, 24) != SK_E_OK) ||
+						(ParamCheck(ATParam[3], (SK_UW *)&channel, 2, 60, 33) != SK_E_OK) ||
 						(ParamCheck(ATParam[4], (SK_UW *)&mode, 2, 6, 0) != SK_E_OK)  ){
 						SK_print("FAIL ER06\r\n");
 						gn_nMenuStatus = SAMPLEAPP_MENU_TOP;
@@ -1490,7 +1617,7 @@ void Interface(void) {
 					gn_nMenuStatus = SAMPLEAPP_MENU_TOP;
 					break;
 				
-				} else if(strcmp((const char *)ATParam[0], "SKTRACK") == 0){
+				} else if(strcmp((const char *)ATParam[0], (const char *)"SKTRACK") == 0){
 					SK_UW sta_id, nic_idx;
 
 					if(NumOfATParam != 3){
@@ -1534,7 +1661,7 @@ void Interface(void) {
 					gn_nMenuStatus = SAMPLEAPP_MENU_TOP;
 					break;
 				
-				} else if(strcmp((const char *)ATParam[0], "SKCHTBL") == 0){
+				} else if(strcmp((const char *)ATParam[0], (const char *)"SKCHTBL") == 0){
 					SK_BOOL ans;
 					SK_UW index, channel;
 
@@ -1545,7 +1672,7 @@ void Interface(void) {
 					}
 
 					if( (ParamCheck(ATParam[1], (SK_UW *)&index, 1, 3, 1) != SK_E_OK) ||
-						(ParamCheck(ATParam[2], (SK_UW *)&channel, 2, 38, 24) != SK_E_OK)  ){
+						(ParamCheck(ATParam[2], (SK_UW *)&channel, 2, 60, 33) != SK_E_OK)  ){
 						SK_print("FAIL ER06\r\n");
 						gn_nMenuStatus = SAMPLEAPP_MENU_TOP;
 						break;
@@ -1561,7 +1688,51 @@ void Interface(void) {
 					gn_nMenuStatus = SAMPLEAPP_MENU_TOP;
 					break;
 				
-				}  else if(strcmp((const char *)ATParam[0], (const char *)"SKVER") == 0){
+				} else if(strcmp((const char *)ATParam[0], (const char *)"SKFINDHASH") == 0){
+					extern SK_UH CalcMySlot(SK_UB*);
+					extern SK_UH GetUpSlotNum(SK_UB mode);
+					SK_BOOL ans;
+					SK_UW val;
+					SK_UW cnt;
+					
+					if(NumOfATParam != 2){
+						SK_print("FAIL ER05\r\n");
+						gn_nMenuStatus = SAMPLEAPP_MENU_TOP;
+						break;
+					}
+
+					if( (ParamCheck(ATParam[1], (SK_UW *)&val, 4, (GetUpSlotNum(SSMac_GetSlotMode())+1), 1) != SK_E_OK) ){
+						SK_print("FAIL ER06\r\n");
+						gn_nMenuStatus = SAMPLEAPP_MENU_TOP;
+						break;
+					}
+
+					ans = FALSE;
+	
+					for( cnt = 0; cnt < 1024; cnt++ ){
+						SK_UH slot;
+						SK_UW rand32 = SSMac_GetRand32();
+						
+						MAC_SET_LONG_B(SSMac_GetSlotHashKey(), rand32);
+						
+						slot = CalcMySlot(SSMac_GetSlotHashKey());
+						
+						if( slot == val ){
+							ans = TRUE;
+							break;
+						}
+					}					
+
+					if( ans == TRUE ){
+						SK_print_hex( MAC_GET_LONG_B(SSMac_GetSlotHashKey()), 8); SK_print(" ");
+						SK_print("OK\r\n");
+					} else {
+						SK_print("FAIL ER10\r\n");
+					}
+					gn_nMenuStatus = SAMPLEAPP_MENU_TOP;
+					break;
+					
+				} else if(strcmp((const char *)ATParam[0], (const char *)"SKVER") == 0){
 					
 					if(NumOfATParam != 1){
 						SK_print("FAIL ER05\r\n");
@@ -1569,7 +1740,8 @@ void Interface(void) {
 						break;
 					}
 
-					SK_print( (SK_B*)SSMac_GetVerStr() ); SK_print("\r\n");
+					SK_print( (SK_B*)SSMac_GetVerStr() ); SK_print("-");
+					SK_print( (SK_B*)SSMac_FuncTypeStr() ); SK_print("\r\n");
 					
 					SK_print("OK\r\n");
 					gn_nMenuStatus = SAMPLEAPP_MENU_TOP;
@@ -1826,6 +1998,8 @@ void Interface(void) {
 							ch = SK_getc();
 							if( ch >= 0 ) break;
 						}
+						
+						rf_reboot();
 					}
 
 					//連続キャリア出力
@@ -1841,10 +2015,14 @@ void Interface(void) {
 							ch = SK_getc();
 							if( ch >= 0 ) break;
 						}
+						
+						rf_reboot();
 					}
 					
 					if( param == 3 ){
 						SK_PHY_Sleep();	
+						
+						//while(1);
 					}
 					
 					if( param == 4 ){
@@ -1897,7 +2075,35 @@ void Interface(void) {
 					if( param == 14 ){
 						Timer_Initialize();  
 					}
+					
+					if( param == 15  ){
+						SK_UB rssi;
+						SK_UB i;
+						
+						for( i = 24; i <= 60; i++ ){
+							SK_PHY_ChangeChannel(i);
+							rssi = ml7404_get_ed_value();
+							SK_print_hex(rssi, 2); SPACE;
+						}
+						
+						CRLF;
+						
+						//don't forget this
+						ml7404_go_rx_mode();
+					}
 
+					if( param == 16 ){
+					  	ml7404_trx_off();
+					}
+					
+					if( param == 17 ){
+					  	ml7404_go_rx_mode();
+					}
+					
+					if( param == 18 ){
+						ml7404_go_tx_mode();
+					}
+					
 					SK_print("OK\r\n");
 					gn_nMenuStatus = SAMPLEAPP_MENU_TOP;
 					break;
@@ -2756,6 +2962,27 @@ void EventProc(void){
 			break;
 		}
 		
+		case SK_PD_DATA_INDICATION_CMD:{
+			SK_PD_DATA_INDICATION		*PdInd;
+			SK_UH data_len;
+			SK_UH i;
+	
+			PdInd = (SK_PD_DATA_INDICATION *)pPkt;
+			
+			data_len = PdInd->m_PsduLength; 
+
+			SK_print("SK_PD_DATA_INDICATION_CMD\r\n");
+			SK_print_hex(data_len, 4);
+			CRLF;
+
+			for( i = 0; i < data_len; i++ ){
+				SK_print_hex(PdInd->m_Psdu[i], 2); SK_print(" ");
+			}
+			CRLF;
+
+			break;
+		}
+		
 		case SK_MCPS_DATA_INDICATION_CMD:{
 			SK_MCPS_DATA_INDICATION		*MdInd;
 			SK_UH data_len;
@@ -2786,6 +3013,55 @@ void EventProc(void){
 			SK_print("SK_MCPS_DATA_CONFIRM:"); CRLF;
 			SK_print(" Status:"); SK_print_hex(lMdCon->m_Status, 2); CRLF;
 
+			break;
+		}
+		
+		case SK_PD_DATA_CONFIRM_CMD:{
+			SK_PD_DATA_CONFIRM* lPdCon;
+					
+			lPdCon = (SK_PD_DATA_CONFIRM *)pPkt;
+
+			SK_print("SK_PD_DATA_CONFIRM:"); CRLF;
+			SK_print(" Status:"); SK_print_hex(lPdCon->m_Status, 2); CRLF;
+
+			break;			
+		}
+		
+		case SS_REGISTER_DEVICE_REQUEST_CMD:{
+			SS_REGISTER_DEVICE_REQUEST* RegDevReq;
+				
+			RegDevReq = (SS_REGISTER_DEVICE_REQUEST *)pPkt;
+
+			SK_print("EREGDEV "); 
+			SK_print_mac_addr(&RegDevReq->m_Address); SK_print(" "); 
+			SK_print_hex(RegDevReq->m_SrcSlot, 4); CRLF;
+
+			break;
+		}
+		
+		case SS_DEVICE_DB_REQUEST_CMD:{
+			SS_DEVICE_DB_REQUEST* DevDBReq;
+				
+			DevDBReq = (SS_DEVICE_DB_REQUEST *)pPkt;
+
+			SK_print("EDBREQ "); 
+			SK_print_mac_addr(&DevDBReq->m_Address); SPACE;
+			SK_print_hex(DevDBReq->m_Slot, 4); SPACE;
+			SK_print_hex(DevDBReq->m_InSlotIdx, 2); CRLF;
+
+			break;
+		}
+		
+		case SS_FRMCNT_UPDATE_REQUEST_CMD:{
+			SS_FRMCNT_UPDATE_REQUEST* FrmCntReq;
+				
+			FrmCntReq = (SS_FRMCNT_UPDATE_REQUEST *)pPkt;
+
+			SK_print("EFCTUPD "); 
+			SK_print_mac_addr(&FrmCntReq->m_Address); SPACE;
+			SK_print_hex(FrmCntReq->m_IncomingFrameCounter, 8); SPACE;
+			SK_print_hex(FrmCntReq->m_OutgoingFrameCounter, 8); CRLF;
+			
 			break;
 		}
 		
@@ -2829,3 +3105,47 @@ SK_BOOL PostJoinReq(SK_UW sta_id){
 	
 	return TRUE;
 }
+
+
+SK_BOOL PostRegDevRes(SK_UH slot, SK_UB idx, SK_UB key[]){
+	SS_REGISTER_DEVICE_RESPONSE *RegDevRes;
+	
+	//イベントサイズに注意
+	//2 + 1 + 16なのでSK_CMD_MEMBLOCKでOK
+	if (SK_AllocCommandMemory((SK_VP *)&RegDevRes) != SK_E_OK) return FALSE;
+	
+	RegDevRes->m_Slot = slot;
+	RegDevRes->m_InSlotIdx = idx;
+	memcpy(RegDevRes->m_Key, key, SS_AES_KEY_LEN);
+
+	if (SK_PostMessage(SK_LAYER_SS_MAC, SK_LAYER_APL, SS_REGISTER_DEVICE_RESPONSE_CMD, (SK_VP)RegDevRes) != SK_E_OK) {
+		SK_FreeMemory(RegDevRes);
+		return FALSE;
+	}
+	
+	return TRUE;
+}
+
+
+SK_BOOL PostDevDBRes(SK_UH slot, SK_UB idx, SK_UB key[], SK_UW frame_cnt, SK_UW out_frame_cnt, SK_ADDRESS* addr){
+	SS_DEVICE_DB_RESPONSE *DevDBRes;
+
+	if (SK_AllocDataMemory((SK_VP *)&DevDBRes) != SK_E_OK) return FALSE;
+	
+	DevDBRes->m_Slot = slot;
+	DevDBRes->m_InSlotIdx = idx;
+	memcpy(DevDBRes->m_Key, key, SS_AES_KEY_LEN);
+	DevDBRes->m_FrameCounter = frame_cnt;
+	DevDBRes->m_OutgoingFrameCounter = out_frame_cnt;
+	SSMac_CopyAddress(&DevDBRes->m_Address, addr);
+
+	if (SK_PostMessage(SK_LAYER_SS_MAC, SK_LAYER_APL, SS_DEVICE_DB_RESPONSE_CMD, (SK_VP)DevDBRes) != SK_E_OK) {
+		SK_FreeMemory(DevDBRes);
+		return FALSE;
+	}
+	
+	return TRUE;
+}
+
+
+

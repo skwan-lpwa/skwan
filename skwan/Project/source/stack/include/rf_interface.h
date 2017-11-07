@@ -84,6 +84,7 @@ void	ml7404_reg_write_after_bit_and(ML7404_Register reg, SK_UB bitmask);
 // Mode
 void	ml7404_start_ecca(void);
 void	ml7404_go_rx_mode(void);
+void	ml7404_go_ed_mode(void);
 void	ml7404_go_tx_mode(void);
 void	ml7404_trx_off(void);
 SK_BOOL ml7404_change_state_and_wait(SK_UB mode, SK_BOOL wait);
@@ -95,10 +96,12 @@ SK_UW	ml7404_get_interrupt_source(void);
 void	ml7404_clear_interrupt_source(SK_UW clear_bit_mask);
 SK_BOOL ml7404_wait_for_int_event(SK_UW stat, SK_UB guard_cnd);
 
-// CCA
+// CCA, RSSI
 SK_UB	ml7404_get_cca_status(void);
 void	ml7404_clear_cca_status(void);
+void	ml7404_set_cca_threshold(SK_UB threshold);
 SK_UB	ml7404_get_rssi(void);
+SK_UB	ml7404_get_ed_value(void);
 
 // FIFO
 SK_UH	ml7404_get_tx_fifo_size(void);
