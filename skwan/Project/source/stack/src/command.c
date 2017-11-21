@@ -1346,14 +1346,16 @@ void Interface(void) {
 					SK_UW slot, idx;
 
 					if(NumOfATParam != 4){
-						SK_print("FAIL ER05\r\n");
+						//20171121 ‰ž“š‚È‚µ‚ð‰¼’è
+						//SK_print("FAIL ER05\r\n");
 						gn_nMenuStatus = SAMPLEAPP_MENU_TOP;
 						break;
 					}
 				
 					if( (ParamCheck(ATParam[1], (SK_UW *)&slot, 4, 1024, 1) != SK_E_OK) ||
 						(ParamCheck(ATParam[2], (SK_UW *)&idx, 1, 1, 0) != SK_E_OK) ){
-						SK_print("FAIL ER06\r\n");
+						//20171121 ‰ž“š‚È‚µ‚ð‰¼’è
+						//SK_print("FAIL ER06\r\n");
 						gn_nMenuStatus = SAMPLEAPP_MENU_TOP;
 						break;
 					}
@@ -1373,7 +1375,8 @@ void Interface(void) {
 					SK_UW addr;
 					
 					if(NumOfATParam != 7){
-						SK_print("FAIL ER05\r\n");
+						//20171121 ‰ž“š‚È‚µ‚ð‰¼’è
+						//SK_print("FAIL ER05\r\n");
 						gn_nMenuStatus = SAMPLEAPP_MENU_TOP;
 						break;
 					}
@@ -1382,14 +1385,16 @@ void Interface(void) {
 						(ParamCheck(ATParam[2], (SK_UW *)&idx, 2, 0xFF, 0) != SK_E_OK) ||
 						(ParamCheck(ATParam[4], (SK_UW *)&frmcnt, 8, 0x00FFFFFF, 0) != SK_E_OK) ||
 						(ParamCheck(ATParam[5], (SK_UW *)&outfrmcnt, 8, 0x00FFFFFF, 0) != SK_E_OK) ){
-						SK_print("FAIL ER06\r\n");
+						//20171121 ‰ž“š‚È‚µ‚ð‰¼’è
+						//SK_print("FAIL ER06\r\n");
 						gn_nMenuStatus = SAMPLEAPP_MENU_TOP;
 						break;
 					}
 						
 					//IEEE 64-bit address
 					if(ParamCheck(ATParam[6] + 8, &addr, 8, 0xFFFFFFFF, 0x00000000) != SK_E_OK){
-						SK_print("FAIL ER06\r\n");
+						//20171121 ‰ž“š‚È‚µ‚ð‰¼’è
+						//SK_print("FAIL ER06\r\n");
 						gn_nMenuStatus = SAMPLEAPP_MENU_TOP;
 						break;
 					}
@@ -1397,7 +1402,8 @@ void Interface(void) {
 
 					*(ATParam[6] + 8) = 0;
 					if(ParamCheck(ATParam[6], &addr, 8, 0xFFFFFFFF, 0x00000000) != SK_E_OK){
-						SK_print("FAIL ER06\r\n");
+						//20171121 ‰ž“š‚È‚µ‚ð‰¼’è
+						//SK_print("FAIL ER06\r\n");
 						gn_nMenuStatus = SAMPLEAPP_MENU_TOP;
 						break;
 					}
