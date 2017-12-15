@@ -20,7 +20,7 @@ extern "C" {
 #define CPUML7416			1
 #define SKWAN				1
 //#define ENDDEVICE			1
-#define USE_STATION_DB		1
+//#define USE_STATION_DB	1
 
 
 //IEEE 802.15.4K 

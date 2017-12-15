@@ -520,7 +520,8 @@ void SSMac_Task(void) {
 			if(ans == FALSE){
 				goto clear_down_slot;
 			} else {
-				SK_WAITFOR(100, SK_GetMessageByCmd(SK_LAYER_SS_MAC, &src_layer, SS_DEVICE_DB_RESPONSE_CMD,(SK_VP *)&pResPkt)== SK_E_OK, EXT_DB, 2);
+				//20171215 change tmout
+				SK_WAITFOR(200, SK_GetMessageByCmd(SK_LAYER_SS_MAC, &src_layer, SS_DEVICE_DB_RESPONSE_CMD,(SK_VP *)&pResPkt)== SK_E_OK, EXT_DB, 2);
 				if( pResPkt != NULL ){
 					SS_DEVICE_DB_RESPONSE* DevDBRes;
 					DevDBRes = (SS_DEVICE_DB_RESPONSE*)pResPkt;
@@ -1500,7 +1501,8 @@ void SSMac_Task(void) {
 				ans = PostDevDBReqFor(next_slot, 0);
 				if(ans == FALSE) goto post_end;
 				
-				SK_WAITFOR(50, SK_GetMessageByCmd(SK_LAYER_SS_MAC, &src_layer, SS_DEVICE_DB_RESPONSE_CMD,(SK_VP *)&pResPkt)== SK_E_OK, EXT_DB, 3);
+				//20171215 change tmout
+				SK_WAITFOR(200, SK_GetMessageByCmd(SK_LAYER_SS_MAC, &src_layer, SS_DEVICE_DB_RESPONSE_CMD,(SK_VP *)&pResPkt)== SK_E_OK, EXT_DB, 3);
 				if( pResPkt != NULL ){
 					SS_DEVICE_DB_RESPONSE* DevDBRes;
 					SS_SLOT_ADDR_DB_ITEM* item;
@@ -1528,7 +1530,8 @@ void SSMac_Task(void) {
 				ans = PostDevDBReqFor(next_slot, 1);
 				if(ans == FALSE) goto post_end;
 				
-				SK_WAITFOR(50, SK_GetMessageByCmd(SK_LAYER_SS_MAC, &src_layer, SS_DEVICE_DB_RESPONSE_CMD,(SK_VP *)&pResPkt)== SK_E_OK, EXT_DB, 4);
+				//20171215 change tmout
+				SK_WAITFOR(200, SK_GetMessageByCmd(SK_LAYER_SS_MAC, &src_layer, SS_DEVICE_DB_RESPONSE_CMD,(SK_VP *)&pResPkt)== SK_E_OK, EXT_DB, 4);
 				if( pResPkt != NULL ){
 					SS_DEVICE_DB_RESPONSE* DevDBRes;
 					SS_SLOT_ADDR_DB_ITEM* item;
