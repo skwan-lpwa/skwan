@@ -84,7 +84,7 @@ After the station ID is set, time slot synchronization starts the next time a be
 Upon completion of the connection, an EJOIN event occurs with Status = 0 (SUCCESS). This completes the connection, and now it is possible to transmit and receive data.
 
 ## Protocol specification
-For more details about a specification, please refer to the wiki
+For more details about the SkWAN protocol, please refer to the wiki:
 
 https://github.com/skwan-lpwa/skwan/wiki
 
