@@ -67,9 +67,9 @@ RF:3
 //   Private functions
 // -------------------------------------------------
 static void 	init_system(void);
-static void	init_uart(void);
-static void	init_uartbuf(void);
-static void 	init_gpio(void);
+static void		init_uart(void);
+static void		init_uartbuf(void);
+static void		init_gpio(void);
 static void 	init_irq(void);
 
 static void 	init_tmr( void );
@@ -132,7 +132,7 @@ SK_BOOL gLastOneShot;
 // -------------------------------------------------
 //10.01ms for ML7416S xtal32
 #define CLK_10m_VALUE_32XTAL (327)
-#define CLK_10m_VALUE_32XTAL_Adjust (318)
+#define CLK_10m_VALUE_32XTAL_Adjust (320)
 
 //960ms Timer adjustment
 static SK_UB gSlotUnitCount = 0;
@@ -170,7 +170,7 @@ void 	init_peripheral(void)
 	//spi2Init(UNUSE_DMAC);
 	
 	//clock sync calibration value
-	SSMac_SetFineCalib(0x5DC0);
+	SSMac_SetFineCalib(0x5000);
 	//
 	  
 	//Setup timer
