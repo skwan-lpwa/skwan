@@ -2216,7 +2216,7 @@ void Interface(void) {
 							SK_print("phy.err:"); SK_print_hex(stats->phy.err, 8); CRLF;
 														
 							SK_print("mac.recv_bcn:"); SK_print_hex(stats->mac.recv_bcn, 8); CRLF;
-							SK_print("mac.recv_data"); SK_print_hex(stats->mac.recv_data, 8); CRLF;
+							SK_print("mac.recv_data:"); SK_print_hex(stats->mac.recv_data, 8); CRLF;
 							SK_print("mac.recv_ack:"); SK_print_hex(stats->mac.recv_ack, 8); CRLF;
 							SK_print("mac.recv_metabcn:"); SK_print_hex(stats->mac.recv_metabcn, 8); CRLF;
 							SK_print("mac.recv_drop:"); SK_print_hex(stats->mac.recv_drop, 8); CRLF;
