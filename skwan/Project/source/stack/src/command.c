@@ -169,7 +169,7 @@ extern SK_UW gPSDUGoldSeed;
 	#define PERBLOCK 		498 //= 0x1C03E400
 	#define MAC_PERBLOCK	499 //= 0x1C03E400
 	#define PERBANK			0
-	#define PERDATA_SIZE	256
+	#define PERDATA_SIZE	252 //4ÇÃî{êî
 	static SK_UB			gPerData[ PERDATA_SIZE ];
 #endif
 
@@ -690,6 +690,10 @@ void Interface(void) {
 							SK_print("ESREG ");
 							SK_print_hex( MAC_GET_LONG_B(SSMac_GetSlotHashKey()), 8 );
 
+						} else if(sregno == 18 ){
+							SK_print("ESREG ");
+							SK_print_hex( SSMac_GetSyncLossThreshold(), 2 );
+
 						} else if(sregno == 20 ){
 							SK_print("ESREG ");
 							SK_print_hex(SSMac_GetSlotCalib(), 2);
@@ -819,7 +823,7 @@ void Interface(void) {
 							SSMac_SetPendExpTime(val);
 							
 						} else if(sregno == 8){
-							if(ParamCheck(ATParam[2], &val, 2, 60, 24) != SK_E_OK){
+							if(ParamCheck(ATParam[2], &val, 2, 57, 33) != SK_E_OK){
 								SK_print("FAIL ER06\r\n");
 								gn_nMenuStatus = SAMPLEAPP_MENU_TOP;
 								break;
@@ -914,6 +918,15 @@ void Interface(void) {
 							}
 
 							MAC_SET_LONG_B(SSMac_GetSlotHashKey(), val);
+							
+						} else if(sregno == 18){				
+							if(ParamCheck(ATParam[2], &val, 2, 10, 1) != SK_E_OK){
+								SK_print("FAIL ER06\r\n");
+								gn_nMenuStatus = SAMPLEAPP_MENU_TOP;
+								break;
+							}
+
+							SSMac_SetSyncLossThreshold( (SK_UB)val );
 							
 						} else if(sregno == 20){
 							if(ParamCheck(ATParam[2], &val, 2, 0xFF, 0) != SK_E_OK){
@@ -2485,6 +2498,9 @@ SK_BOOL SaveParam(void){
 	gPerData[index] = SSMac_GetHoppingTable();
 	index++; 
 
+	gPerData[index] = SSMac_GetSyncLossThreshold();
+	index++; 
+	
 	gPerData[index] = gAutoJoin;
 	index++; 
 	
@@ -2640,6 +2656,10 @@ SK_BOOL LoadParam(void){
 	val8 = gPerData[index];
 	index++; 
 	SSMac_SetHoppingTable(val8);
+
+	val8 = gPerData[index];
+	index++; 
+	SSMac_SetSyncLossThreshold(val8);
 
 	gAutoJoin = gPerData[index];
 	index++;
