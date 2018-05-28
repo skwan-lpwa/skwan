@@ -568,6 +568,8 @@ SK_BOOL SSMac_SetFullManage(SK_BOOL flag);
 SK_BOOL SSMac_IsFullManage(void);
 SK_UW SSMac_GetFrameCounter(void);
 SK_UW SSMac_GetFrameCounterSTA(void);
+SK_BOOL SSMac_SetSyncLossThreshold(SK_UB val);
+SK_UB SSMac_GetSyncLossThreshold(void);
 
 SK_BOOL SSMac_SetSlotCalib(SK_UB val);
 SK_UB SSMac_GetSlotCalib(void);
