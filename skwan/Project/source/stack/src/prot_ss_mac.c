@@ -63,7 +63,7 @@
 // -------------------------------------------------
 //   Consts
 // -------------------------------------------------
-static const char* gsSSMac_VerStr = "1.2.0rc5";
+static const char* gsSSMac_VerStr = "1.2.0rc6";
 
 #ifdef ENDDEVICE
 static const char* gsSSMac_FuncTypeStr = "ED";
@@ -290,6 +290,7 @@ static SK_UH gnPendingSlot;
 //Sync lossチェック
 static SK_UW gnLastSyncLossCheck;
 static SK_UW gnLastBeaconRecvTime;
+static SK_UW gnLastBSNRecvTime;
 
 static SK_UW gnLastPendCheck;
 
@@ -350,6 +351,7 @@ void SSMac_Init(SK_UW macadr1, SK_UW macadr2) {
 	//gnSSMac_FineCalib = 0;
 	
 	gnLastBeaconRecvTime = 0;
+	gnLastBSNRecvTime = 0;
 	gnLastSyncLossCheck = 0;
 	gnLastPendCheck = 0;
 	
@@ -1267,7 +1269,11 @@ void SSMac_Task(void) {
 				}
 				
 				gnLastBeaconRecvTime = SK_GetLongTick();
-				
+				if( gnLastBeaconRecvTime == 0 ) {
+					gnLastBeaconRecvTime++;
+				}
+				gnLastBSNRecvTime = gnLastBeaconRecvTime;
+
 				//ビーコン受信による時刻補正
 				SSMac_AdjustSlot(bsn, &slot_cfg, MdInd->m_TimeStamp);
 				
@@ -1562,7 +1568,19 @@ void SSMac_Task(void) {
 			DebugPort_Set( 1, ((~DebugPort_Get(1)) & 0x01));
 			#endif
 			#endif
-			
+				
+			//20180528 add
+			//エンドデバイスがビーコンをロストするとgnSSMac_BSNの不一致が起こる現象の対策
+			//（周波数アジリティのチャンネル番号計算の食い違いが起こる）
+			// ->ビーコンロストを検出したらEDが自発的にBSNをインクリメント
+			if( SSMac_GetDeviceType() != SS_TYPE_STATION ){
+				if( (next_slot == 1) && 
+					((SK_UW)(SK_GetLongTick() - gnLastBSNRecvTime) > SS_SLOT_DURATION) ){
+					gnSSMac_BSN++;
+					gnLastBSNRecvTime = SK_GetLongTick();
+				}
+			}
+
 			need_wake = FALSE;
 
 			if( NeedWakeup(next_slot) == TRUE ){
@@ -4736,6 +4754,17 @@ SK_BOOL SSMac_SetFineCalib(SK_UW val){
 
 SK_UW SSMac_GetFineCalib(void){
   	return gnSSMac_FineCalib;
+}
+
+
+SK_BOOL SSMac_SetSyncLossThreshold(SK_UB val){
+ 	gnSSMac_SyncLossThreshold = val;
+	return TRUE;
+}
+
+
+SK_UB SSMac_GetSyncLossThreshold(void){
+  	return gnSSMac_SyncLossThreshold;
 }
 
 
