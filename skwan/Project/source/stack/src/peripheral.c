@@ -3,7 +3,7 @@
     Version:
     Description: Hardware dependant routins for ML7416s
     
-    Copyrights(C) 2016-2017 Skyley Networks, Inc. All Rights Reserved.
+    Copyrights(C) 2016-2018 Skyley Networks, Inc. All Rights Reserved.
 
     Redistribution and use in source and binary forms, with or without
     modification, are permitted provided that the following conditions

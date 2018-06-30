@@ -3,7 +3,7 @@
     Version:
     Description: Flash read/write interface for ML7416
     
-    Copyrights(C) 2016-2017 Skyley Networks, Inc. All Rights Reserved.
+    Copyrights(C) 2016-2018 Skyley Networks, Inc. All Rights Reserved.
 
     Redistribution and use in source and binary forms, with or without
     modification, are permitted provided that the following conditions
