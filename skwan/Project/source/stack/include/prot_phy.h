@@ -150,7 +150,8 @@ extern SK_UB			gnPHY_CCAThreshold;
 extern SK_UB			gnPHY_CurrentTRX;
 
 //Stack dependent
-extern SK_BOOL			gnPHY_TestMode;
+extern SK_UB			gnPHY_TestMode;
+extern SK_BOOL			gnPHY_SendLimitEnable;
 
 #ifdef __cplusplus
 }

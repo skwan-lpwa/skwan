@@ -95,6 +95,7 @@ void	ml7404_disable_interrupt_source(SK_UW disable_bit_mask);
 SK_UW	ml7404_get_interrupt_source(void);
 void	ml7404_clear_interrupt_source(SK_UW clear_bit_mask);
 SK_BOOL ml7404_wait_for_int_event(SK_UW stat, SK_UB guard_cnd);
+SK_BOOL ml7404_wait_for_int_event_after_clear(SK_UW stat, SK_UB guard_cnd, SK_BOOL clear);
 
 // CCA, RSSI
 SK_UB	ml7404_get_cca_status(void);

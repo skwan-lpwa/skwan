@@ -83,8 +83,8 @@ extern "C" {
 			#define DEF_PENDING_BUF_SIZE	204
 			#define DEF_DATA_MEMBLOCK_NUM	212
 		#else
-			#define DEF_MAX_DEVICE_SIZE		800
-			#define DEF_PENDING_BUF_SIZE	200
+			#define DEF_MAX_DEVICE_SIZE		818
+			#define DEF_PENDING_BUF_SIZE	204
 			#define DEF_DATA_MEMBLOCK_NUM	208
 		#endif
 	#endif

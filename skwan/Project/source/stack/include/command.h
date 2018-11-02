@@ -35,6 +35,17 @@
 
 #include "skyley_type.h"
 
+#define		ER01	1
+#define		ER02	2
+#define		ER03	3
+#define		ER04	4
+#define		ER05	5
+#define		ER06	6
+#define		ER07	7
+#define		ER08	8
+#define		ER09	9
+#define		ER10	10
+
 extern void CommandInit(void);
 extern void CommandMain(void);
 

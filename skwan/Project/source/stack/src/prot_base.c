@@ -1,7 +1,7 @@
 /**
     Author:        Skyley Networks, Inc.
     Version:
-    Description: Protoco stack main loop
+    Description: Protocol stack main loop
     
     Copyrights(C) 2016-2018 Skyley Networks, Inc. All Rights Reserved.
 

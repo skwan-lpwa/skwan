@@ -170,7 +170,7 @@ void 	init_peripheral(void)
 	//spi2Init(UNUSE_DMAC);
 	
 	//clock sync calibration value
-	SSMac_SetFineCalib(0x5000);
+	SSMac_SetFineCalib(0x1E00);
 	//
 	  
 	//Setup timer

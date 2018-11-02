@@ -485,6 +485,11 @@ void	ml7404_clear_interrupt_source(SK_UW clear_bit_mask)
 //
 SK_BOOL ml7404_wait_for_int_event(SK_UW stat, SK_UB guard_cnd)
 {
+	ml7404_wait_for_int_event_after_clear(stat, guard_cnd, TRUE);
+}
+
+
+SK_BOOL ml7404_wait_for_int_event_after_clear(SK_UW stat, SK_UB guard_cnd, SK_BOOL clear){
 	SK_UB loop;
 	
 	loop = guard_cnd;
@@ -493,7 +498,9 @@ SK_BOOL ml7404_wait_for_int_event(SK_UW stat, SK_UB guard_cnd)
 		SK_UW source;
 		source = ml7404_get_interrupt_source();
 		if( (source & stat) != 0 ){
-			ml7404_clear_interrupt_source(source);
+			if( clear == TRUE ){
+				ml7404_clear_interrupt_source(source);
+			}
 			return TRUE;
 		}
 		
@@ -584,15 +591,15 @@ void	ml7404_clear_tx_fifo(void)
 // -------------------------------------------------
 /*
 20171025 5単位チャンネル
-ch 0 -> 921.0MHz
+ML7404 ch 0 -> 921.0MHz
 ...
 ...
-ch 33 -> 927.6MHz
+ML7404 ch 69 -> 927.6MHz
 
 チャネル周波数= CH#0周波数 + チャネル間隔 * チャネル設定
 
 CH#0周波数 = 921.0
-チャネル間隔 = 200KHz
+チャネル間隔 = 100KHz
 */
 void	ml7404_change_channel(SK_UB channel)
 {
@@ -602,6 +609,7 @@ void	ml7404_change_channel(SK_UB channel)
 	//Set CH num
 	rf_reg_wr(0x09, channel);
 }
+
 
 // -------------------------------------------------
 //   Sleep
@@ -747,24 +755,22 @@ void rf_reg_init(void){
 	//GPIO1_CTRL(EXT_CLK_OUT=OFF)
 	rf_reg_wr(0x4F, 0x0);
 
-	
-	
+
 	//OSC_W_SEL
 	//rf_reg_wr(0x08, 0x40); //skyley add
-
+	
 	//クロック安定化待ち時間
 	wait_no_timer(WAIT_1MS); 
 
 	//CLK安定化完了待ち
 	ml7404_wait_for_int_event(INT_CLOCK_STABLE, 255);
-	
 
 	
 	//PA_REG_ADJ_H/L 10dBm設定
 	rf_reg_wr(0x67, 0x00);
 	rf_reg_wr(0x68, 0x89);
 
-	
+
 	//BANK2
 	rf_reg_wr(0x00, 0x44);
 
@@ -824,6 +830,7 @@ void rf_reg_init(void){
 	//PLL_DIV_SET
 	rf_reg_wr(0x1A, 0x00);
 	
+	//20181031 ch0を920.7に変更
 #if 1
 	//0x1B-1E TXFREQ_I/FH/FM/FL
 	// 921.0MHz
@@ -876,9 +883,14 @@ void rf_reg_init(void){
 
 	//0x23-24    CH_SPACE
 	//200kHz
-	rf_reg_wr(0x23, 0x16);
-	rf_reg_wr(0x24, 0xC1);
+	//rf_reg_wr(0x23, 0x16);
+	//rf_reg_wr(0x24, 0xC1);
 
+	//20181031 100khz ch spacing
+	//0x23-24    CH_SPACE
+	//100kHz
+	rf_reg_wr(0x23, 0x0B);
+	rf_reg_wr(0x24, 0x60);
 	
 	//
 	//Channnel Number
@@ -1136,6 +1148,7 @@ void rf_reg_init(void){
 
 	ml7404_wait_for_int_event(INT_COMPLETE_VCO, 255);
 
+
 	//
 	// ---- additional setting
 	//	
@@ -1156,6 +1169,8 @@ void rf_reg_init(void){
 	
 	//doing later
 	//ml7404_go_rx_mode();
+	
+	SK_PHY_SetCCAThreshold(80); //@@@ this cca threshold is temporal
 	
 	RF_UNLOCK();
 }

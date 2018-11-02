@@ -30,6 +30,7 @@
     SUCH DAMAGE.
 */
 
+
 // -------------------------------------------------
 //   Compiler Options
 // -------------------------------------------------
@@ -54,6 +55,7 @@
 //#define DEBUG_INT 
 //#define _DEBUG_INT
 //#define DEBUG_STATUS
+//#define DEBUG_PLL
 
 
 // -------------------------------------------------
@@ -77,6 +79,8 @@ static SK_BOOL TransmitPacket(void);
 static void SK_PHY_ReceivePacket(void);
 static SK_BOOL SK_PHY_ExecCSMACA(void);
 static void InitTxContext(void);
+static SK_UB PHY_ConvChToRaw(SK_UB ch);
+static SK_BOOL PHY_ChangeRawChannel(SK_UB ch);
 
 
 // -------------------------------------------------
@@ -133,6 +137,9 @@ SK_UW		gTotalTxTimeStart;
 //1時間経過チェックの頻度調整
 SK_UW		gUpdateCheckInterval;
 
+//送信時間制限によるパケット送信抑止の有効・無効
+SK_BOOL		gnPHY_SendLimitEnable;
+
 
 // -------------------------------------------------
 //   State machines
@@ -186,14 +193,13 @@ void SK_PHY_Init(void) {
 	gnPHY_CurrentTRX		= SK_PHY_RX_ON;
 
 	gnPHY_TestMode			= 0;
+	gnPHY_SendLimitEnable	= 1;
 	
 	gTxTotalLen = 0;
 	
 	ResetTxTimeContext();
 
 	SSMac_Wakeup();
-	
-	SK_PHY_SetCCAThreshold(80); //@@@ this cca threshold is temporal
 
 	gnSK_Time_CCA++;
 	
@@ -240,7 +246,7 @@ SK_print("SK_PD_DATA_REQUEST_CMD\r\n");
 				data_len = MdReq->m_MsduLength;
 			}
 		
-			if( gUnderSendLimit == TRUE ){
+			if( gnPHY_SendLimitEnable == TRUE && gUnderSendLimit == TRUE ){
 			  	SS_STATS(phy.send_drop);
 				PostDataConfirm(nResID, SK_PHY_UNDER_SEND_LIMIT); 
 				break;
@@ -332,6 +338,52 @@ SK_print("SK_PD_DATA_REQUEST_CMD\r\n");
 //   Carrier sense and packet transmission
 // -------------------------------------------------
 
+SK_BOOL exec_3ch_cca(void){
+	SK_BOOL ans = FALSE;
+	SK_UB reg;
+	
+	RF_LOCK();
+	
+	// --------------------
+	//Ch -3 CCA
+	PHY_ChangeRawChannel( PHY_ConvChToRaw( gnPHY_CurrentChannel ) - 3 );
+	ml7404_start_ecca();
+	
+	ml7404_wait_for_int_event_after_clear(INT_CCA_COMPLETE, 20, FALSE);
+	reg = ml7404_get_cca_status() & 0x03;
+	if( reg != 0 ) goto ans;
+	
+	
+	// --------------------
+	//Center Freq CCA
+	PHY_ChangeRawChannel( PHY_ConvChToRaw( gnPHY_CurrentChannel ) );
+	ml7404_start_ecca();
+	
+	ml7404_wait_for_int_event_after_clear(INT_CCA_COMPLETE, 20, FALSE);
+	reg = ml7404_get_cca_status() & 0x03;
+	if( reg != 0 ) goto ans;
+	
+	
+	// --------------------
+	//Ch + 3 CCA
+	PHY_ChangeRawChannel( PHY_ConvChToRaw( gnPHY_CurrentChannel ) + 3 );
+	ml7404_start_ecca();	
+	
+	ml7404_wait_for_int_event_after_clear(INT_CCA_COMPLETE, 20, FALSE);
+	reg = ml7404_get_cca_status() & 0x03;
+	if( reg != 0 ) goto ans;
+
+	ans = TRUE;
+
+ans:
+	//chをもとに戻す
+	PHY_ChangeRawChannel( PHY_ConvChToRaw( gnPHY_CurrentChannel ) );
+	
+	RF_UNLOCK();
+
+	return ans;
+}
+
 SK_BOOL SK_PHY_ExecCSMACA(void){
 	static SK_UB reg;
 	static SendState state;
@@ -343,83 +395,47 @@ SK_BOOL SK_PHY_ExecCSMACA(void){
 		
 		SK_SETSTATE(eExecCCA, CCA);
 	
-	} else if( state == eExecCCA ){
+	} else if( state == eExecCCA ){		
+		SK_BOOL cca_ans;
+		
 		#ifdef DEBUG_CCA
 		SK_print("now start to send\r\n");
 		#endif
 
 		//rf_phy_reset();
-		ml7404_start_ecca();
-		
-		gCCAGuardTime = SK_GetLongTick();
-		
-		//debug
-		//gnPHY_CCACompleted = TRUE;
+		cca_ans = exec_3ch_cca();
+		gnPHY_CCACompleted = TRUE;
 
-		SK_SETSTATE(eWaitCCAComp, CCA);
-		
-	} else if( state == eWaitCCAComp ){
-		//Detect CCA completed
-		if( gnPHY_CCACompleted == TRUE ){
+		//CCA OK -> Start Tx 
+		if( cca_ans == TRUE ){
 			#ifdef DEBUG_CCA
-			SK_print("cca done\r\n");
+			SK_print("start wait for tx comp\r\n");
 			#endif
-
-			//Check CCA status 
-			reg = ml7404_get_cca_status() & 0x03;
-			//reg = 0; //debug always success
-			ml7404_clear_interrupt_source(INT_CCA_COMPLETE);
-
-			//CCA OK -> Start Tx 
-			if( reg == 0 ){
-				#ifdef DEBUG_CCA
-				SK_print("start wait for tx comp\r\n");
-				#endif
 			
-				//move to TX state
-				#ifdef DEBUG_GPIO_RFTX
-				DebugPort_Set(1, ((~DebugPort_Get(1)) & 0x01));
-				#endif
+			//move to TX state
+			#ifdef DEBUG_GPIO_RFTX
+			DebugPort_Set(1, ((~DebugPort_Get(1)) & 0x01));
+			#endif
 				
-				StartTxTime();
+			StartTxTime();
 
-				TransmitPacket();
+			TransmitPacket();
 
-				//move to TX state
-				SK_SETSTATE(eWaitTxComp, CCA);
+			//move to TX state
+			SK_SETSTATE(eWaitTxComp, CCA);
 				
-			} else {
-				#ifdef DEBUG_CCA
-				SK_print("cca fail\r\n");
-				#endif
-			
-				gnPHY_CCACompleted = FALSE;
-				ml7404_clear_interrupt_source(INT_CCA_COMPLETE); 
-				ml7404_trx_off();
-
-				SK_SETSTATE(eCCABusy, CCA);	//CCA busy case
-			} 
-			
 		} else {
-		  
 			#ifdef DEBUG_CCA
-			SK_print_hex(ml7404_get_cca_status(), 4); SK_print(" ");
+			SK_print("cca fail\r\n");
 			#endif
-				
-			//CCA開始してからガードタイム時間経過
-			//->タイムアウト
-			if( (SK_UW)(SK_GetLongTick() - gCCAGuardTime) > 50 ){
 			
-				#ifdef DEBUG_CCA
-				SK_print("cca timeout\r\n");
-				#endif				
+			gnPHY_CCACompleted = FALSE;
+			ml7404_clear_interrupt_source(INT_CCA_COMPLETE); 
+			ml7404_trx_off();
 
-				ml7404_trx_off();
-			
-				SK_SETSTATE(eCCABusy, CCA);
-			}
-		}
-		
+			SK_SETSTATE(eCCABusy, CCA);	//CCA busy case
+		} 
+
 	} else if( state == eWaitTxComp ){		
 		//wait for TX complete
 		if( gnPHY_TxCompleted == TRUE ){
@@ -500,6 +516,103 @@ static void SK_PHY_ReceivePacket(void)
   	SK_UB layer;
 	SK_MCPS_DATA_INDICATION *MdInd;
 	SS_MHR phr;
+
+	ml7404_trx_off();
+	
+	ml7404_fifo_read_block(rx_fifo, 64);
+
+	phr.Raw[0] = rx_fifo[0];
+	
+	if( gIsCRCError == TRUE ){
+		SS_STATS(phy.recv_drop);
+		goto rx_exit;
+	}
+	
+	//buffer alloc OK?
+	if( SK_AllocDataMemoryWith((SK_VP *)&MdInd, 2) != SK_E_OK ){
+		SS_STATS(mem.err);
+		SS_STATS(phy.recv_drop);
+	  	goto rx_exit;
+	}
+	
+	MdInd->m_Rssi		= SK_PHY_ReadRSSIValue();
+	MdInd->m_TimeStamp 	= SK_GetLongTick();
+	MdInd->m_RecvSlot 	= SSMac_GetCurrentSlot();
+	
+	
+	if( gnPHY_TestMode == 0 ){
+		gRxTotalLen = phr.Field.m_Length + SS_MHR_LEN + SS_CRC_LEN;
+	
+		if( phr.Field.m_Length == 0 ) {
+			SK_FreeMemory(MdInd);
+		  	SS_STATS(phy.recv_drop);
+			goto rx_exit;
+		}
+		
+		if( gRxTotalLen > SS_MAX_FRAME_LEN ){
+			SK_FreeMemory(MdInd);
+		  	SS_STATS(phy.recv_drop);
+			goto rx_exit;
+		}
+		
+		MdInd->m_MsduLength = gRxTotalLen - SS_CRC_LEN;
+		
+		memcpy(MdInd->m_Msdu, rx_fifo, MdInd->m_MsduLength);
+		
+	} else {
+		SK_UH i;
+		
+		gRxTotalLen = PSDU;
+		
+		//テストモードは先頭16バイトにDst Addr + Src Addr
+		SSMac_GetExtAddress(&MdInd->m_DstAddr, rx_fifo);
+		SSMac_GetExtAddress(&MdInd->m_SrcAddr, rx_fifo + 8);
+		
+		//宛先アドレスチェック
+		if( MdInd->m_DstAddr.Body.Extended.m_Long[0] == 0xFFFFFFFF && MdInd->m_DstAddr.Body.Extended.m_Long[1] == 0xFFFFFFFF ){
+			//
+			// 0xFFFFFFFFをブロードキャストと見なして受信処理
+			//
+		} else if( SSMac_Equals(SSMac_GetAddress(), &MdInd->m_DstAddr) == FALSE ){
+			SK_FreeMemory(MdInd);
+		  	SS_STATS(phy.recv_drop);
+			goto rx_exit;
+		}
+		
+		MdInd->m_MsduLength = gRxTotalLen - 16 - SS_CRC_LEN;
+		
+		for(i=0;i<MdInd->m_MsduLength;i++) {
+			MdInd->m_Msdu[i] = rx_fifo[i + 16];
+		}
+	}
+	
+	#ifdef DEBUG_RX
+	SK_print_hex(gRxTotalLen, 2); SK_print(" ");
+	#endif
+	
+	SS_STATS(phy.recv);
+	
+	if( gnPHY_TestMode == 0 ){
+		layer = gnPHY_UpperLayer;
+	} else if( gnPHY_TestMode == 1 ){
+		layer = SK_LAYER_APL;
+	}
+		
+	if(SK_PostMessage(layer, SK_LAYER_PHY, SK_MCPS_DATA_INDICATION_CMD, (SK_VP)MdInd) != SK_E_OK){
+		SK_FreeMemory(MdInd);
+	}
+	
+rx_exit:
+	gRxTotalLen = 0;
+	ml7404_go_rx_mode();
+}
+
+#if 0
+static void SK_PHY_ReceivePacket(void)
+{
+  	SK_UB layer;
+	SK_MCPS_DATA_INDICATION *MdInd;
+	SS_MHR phr;
 	
 	ml7404_trx_off();
 	
@@ -574,7 +687,7 @@ static void SK_PHY_ReceivePacket(void)
 	gRxTotalLen = 0;
 	ml7404_go_rx_mode();
 }
-
+#endif
 
 // -------------------------------------------------
 //   Process RF interrupts
@@ -592,6 +705,15 @@ void SK_PHY_Interrupt(void) {
 	SK_print("INT:"); SK_print_hex(source, 8);
 	SK_print("\r\n");
 	#endif
+	
+	if( (source & INT_UNLOCK_PLL) != 0 ){
+		#ifdef DEBUG_PLL
+		SK_print("PLL UNLOCK INT:"); SK_print_hex(source, 8);
+		SK_print("\r\n");
+		#endif
+
+		SS_STATS(phy.err);
+	}
 
 	if( (source & INT_FOUND_SFD) != 0 ){ 
 		gIsCRCError = FALSE;
@@ -696,14 +818,23 @@ void SK_PHY_Wakeup( void ){
 // -------------------------------------------------
 //   Change channel
 // -------------------------------------------------
+static SK_UB PHY_ConvChToRaw(SK_UB ch){
+	return (ch - 24) * 2;
+}
+
+
+//1mW超え20mW以下 5単位チャンネル
 /**
-ch24 -> 920.7MHz
+ch24 -> 921.0MHz
 ...
+ch33 -> 922.8MHz
 ...
-ch60 -> 927.9MHz
+ch57 -> 927.6MHz
 */
-SK_BOOL SK_PHY_ChangeChannel(SK_UB ch) {
-  	if( ch < 24 || ch > 60 ){
+
+
+SK_BOOL SK_PHY_ChangeChannel(SK_UB ch) {	
+  	if( ch < 33 || ch > 57 ){
 		return FALSE;
   	}
   
@@ -717,11 +848,53 @@ SK_BOOL SK_PHY_ChangeChannel(SK_UB ch) {
 	
 	ml7404_trx_off();		
 
-	ml7404_change_channel(ch - 24);
+	//ch spacing = 100khz
+	ml7404_change_channel( PHY_ConvChToRaw(ch) );
 
 	ml7404_go_rx_mode();
 	
 	RF_UNLOCK();
+	
+	return TRUE;
+}
+
+
+/*
+ML7404 chレジスタ変更
+ccaのためch69の３個先まで設定可能にする
+
+ML7404 ch 0 -> 921.0MHz
+...
+ML7404 ch 18 -> 922.8MHz  <==ARIB T108 min
+...
+...
+ML7404 ch 66 -> 927.6MHz  <==ARIB T108 max
+
+ML7404 ch 67 -> 927.7MHz
+ML7404 ch 68 -> 927.8MHz
+ML7404 ch 69 -> 927.9MHz
+*/
+//
+// RF_LOCK区間で呼び出すこと
+//
+SK_BOOL PHY_ChangeRawChannel(SK_UB ch) {	
+  	if( ch > 69 ){
+		return FALSE;
+  	}
+  
+	if( gnPHY_CurrentTRX == SK_PHY_TRX_OFF ){
+		SK_PHY_Wakeup();
+	}
+
+	//RF_LOCK();
+	
+	ml7404_trx_off();		
+
+	ml7404_change_channel( ch );
+
+	ml7404_go_rx_mode();
+	
+	//RF_UNLOCK();
 	
 	return TRUE;
 }
