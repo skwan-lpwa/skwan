@@ -90,5 +90,8 @@ For more details about the SkWAN protocol, please refer to the wiki:
 
 https://github.com/skwan-lpwa/skwan/wiki
 
+## Sample Application
+
+http://www.skyley.com/wiki/index.php?LoRa_Tutorial (in Japanese)
 
 
