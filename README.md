@@ -90,11 +90,11 @@ For more details about the SkWAN protocol, please refer to the wiki:
 
 https://github.com/skwan-lpwa/skwan/wiki
 
-## Sample Application
+## Sample application
 
 http://www.skyley.com/wiki/index.php?LoRa_Tutorial (in Japanese)
 
-## Command Reference Manual with Tutorial
+## Command reference manual with tutorial
 
 https://github.com/skwan-lpwa/skwan/files/4006837/SkWAN_Command_v1.0.0d10_E.pdf
 
