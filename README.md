@@ -7,6 +7,8 @@ Devices are divided mainly into stations and end devices when in operation. A st
 
 SkWAN uses a time-division time slot system for communication control in the MAC layer. Therefore, even at low data rates, it can house many end devices, allowing stable communication. Since basically it does not cause communication collisions, end devices are free from excess power consumption associated with carrier sensing repetition or retransmission, offering superior power saving properties.
  
+ ![tdma](https://user-images.githubusercontent.com/11895675/71439027-4c026300-273b-11ea-9d3d-f3019f81e3af.jpg)
+
  A station can incorporate four wireless communication modules and one auxiliary module. This allows one station to house about 6400 end devices in the maximum configuration.
 
 An end device can operate with a low-cost 8K-RAM 128K-Flash MCU or other similar MCUs. It operates in power save mode during most of its operating time except for the time slot for the local terminal; therefore, it is possible to easily achieve long-term battery-driven operation without complicated power-saving control by an application.
@@ -87,6 +89,14 @@ Upon completion of the connection, an EJOIN event occurs with Status = 0 (SUCCES
 For more details about the SkWAN protocol, please refer to the wiki:
 
 https://github.com/skwan-lpwa/skwan/wiki
+
+## Sample application
+
+http://www.skyley.com/wiki/index.php?LoRa_Tutorial (in Japanese)
+
+## Command reference manual with tutorial
+
+https://github.com/skwan-lpwa/skwan/files/4006837/SkWAN_Command_v1.0.0d10_E.pdf
 
 
 
