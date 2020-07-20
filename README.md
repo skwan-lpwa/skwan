@@ -1,11 +1,11 @@
-# What is SkWAN?
+# What is SKWAN?
 SkWAN is a star-network protocol stack optimized for LPWAN (Low Power Wide Area Network).
 
 Devices are divided mainly into stations and end devices when in operation. A station is equivalent to an access point, and serves as a gateway to transfer data from an end device to the Internet side. An end device periodically transmits several to several tens of bytes of sensing data to a station.
 
 ## Features
 
-SkWAN uses a time-division time slot system for communication control in the MAC layer. Therefore, even at low data rates, it can house many end devices, allowing stable communication. Since basically it does not cause communication collisions, end devices are free from excess power consumption associated with carrier sensing repetition or retransmission, offering superior power saving properties.
+SKWAN uses a time-division time slot system for communication control in the MAC layer. Therefore, even at low data rates, it can house many end devices, allowing stable communication. Since basically it does not cause communication collisions, end devices are free from excess power consumption associated with carrier sensing repetition or retransmission, offering superior power saving properties.
  
  ![tdma](https://user-images.githubusercontent.com/11895675/71439027-4c026300-273b-11ea-9d3d-f3019f81e3af.jpg)
 
@@ -86,7 +86,7 @@ After the station ID is set, time slot synchronization starts the next time a be
 Upon completion of the connection, an EJOIN event occurs with Status = 0 (SUCCESS). This completes the connection, and now it is possible to transmit and receive data.
 
 ## Protocol specification
-For more details about the SkWAN protocol, please refer to the wiki:
+For more details about the SKWAN protocol, please refer to the wiki:
 
 https://github.com/skwan-lpwa/skwan/wiki
 
